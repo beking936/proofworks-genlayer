@@ -1,0 +1,22 @@
+{
+  "name": "ProofWorks GenLayer",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": {
+      "label": "ProofWorks Frontend",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "bash -lc 'npm install && npm --prefix frontend install && pip install -r requirements.txt'",
+  "postStartCommand": "bash -lc 'cd /workspaces/proofworks-genlayer && nohup npm --prefix frontend run dev -- --host 0.0.0.0 > /tmp/proofworks-frontend.log 2>&1 &'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

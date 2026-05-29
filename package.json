@@ -1,0 +1,19 @@
+{
+  "name": "proofworks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy:studionet": "NETWORK=studionet tsx scripts/deploy.ts",
+    "deploy:bradbury": "NETWORK=bradbury tsx scripts/deploy.ts",
+    "schema": "tsx scripts/schema.ts"
+  },
+  "dependencies": {
+    "genlayer-js": "^1.1.8",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1"
+  }
+}
