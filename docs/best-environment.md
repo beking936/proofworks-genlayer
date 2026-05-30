@@ -20,7 +20,7 @@ Why this is best:
 Current Studionet contract:
 
 ```txt
-0x697dB374F592f11Fe85Efb081E7fA53c9684eb47
+0xe76307a73bc5456Bb31AB720F38eeBdf3fbcF7c7
 ```
 
 ## 2. Live development URL — Codespaces

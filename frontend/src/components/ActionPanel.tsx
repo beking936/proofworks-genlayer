@@ -27,10 +27,13 @@ export function ActionPanel({
   const [title, setTitle] = useState("Patch the README oath");
   const [description, setDescription] = useState("Submit concise proof that the requested work is complete.");
   const [criteria, setCriteria] = useState("The proof must clearly satisfy the requested task.");
+  const [sourceType, setSourceType] = useState<"MANUAL" | "GITHUB_ISSUE" | "GITHUB_PR" | "URL_SPEC">("MANUAL");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [evidenceType, setEvidenceType] = useState<EvidenceType>("TEXT_SUBMISSION");
   const [reward, setReward] = useState("1");
   const [proofUrl, setProofUrl] = useState("");
   const [proofText, setProofText] = useState("done");
+  const [maxRevisions, setMaxRevisions] = useState("2");
   const [isBusy, setIsBusy] = useState(false);
 
   const selectedId = useMemo(() => selectedTask ? asNumber(selectedTask.task_id) : 0, [selectedTask]);
@@ -40,9 +43,12 @@ export function ActionPanel({
     setTitle(draft.title);
     setDescription(draft.description);
     setCriteria(draft.criteria);
+    setSourceType(draft.sourceType);
+    setSourceUrl(draft.sourceUrl);
     setEvidenceType(draft.evidenceType);
     setReward(draft.reward);
     setProofUrl(draft.proofUrl);
+    setMaxRevisions(draft.maxRevisions);
     onDraftConsumed?.();
   }, [draft, onDraftConsumed]);
 
@@ -80,17 +86,27 @@ export function ActionPanel({
         <label>Description<textarea value={description} onChange={(e) => setDescription(e.target.value)} /></label>
         <label>Acceptance criteria<textarea value={criteria} onChange={(e) => setCriteria(e.target.value)} /></label>
         <div className="form-row">
+          <label>Source<select value={sourceType} onChange={(e) => setSourceType(e.target.value as any)}>
+            <option value="MANUAL">MANUAL</option>
+            <option value="GITHUB_ISSUE">GITHUB_ISSUE</option>
+            <option value="GITHUB_PR">GITHUB_PR</option>
+            <option value="URL_SPEC">URL_SPEC</option>
+          </select></label>
           <label>Evidence<select value={evidenceType} onChange={(e) => setEvidenceType(e.target.value as EvidenceType)}>
             <option value="TEXT_SUBMISSION">TEXT_SUBMISSION</option>
             <option value="GITHUB_PR">GITHUB_PR</option>
             <option value="URL_DOCUMENT">URL_DOCUMENT</option>
           </select></label>
+        </div>
+        <label>Source URL<input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://github.com/org/repo/issues/123" /></label>
+        <div className="form-row">
           <label>Reward, tiny test unit<input value={reward} onChange={(e) => setReward(e.target.value)} inputMode="numeric" /></label>
+          <label>Max revisions<input value={maxRevisions} onChange={(e) => setMaxRevisions(e.target.value)} inputMode="numeric" /></label>
         </div>
         <button disabled={isBusy || !writeClient} onClick={() => run("create_task", () => writeClient.writeContract({
           address: CONTRACT_ADDRESS as Address,
-          functionName: "create_task",
-          args: [title, description, criteria, evidenceType, 0, ""],
+          functionName: "create_case",
+          args: [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2")],
           value: BigInt(reward || "0"),
         }))}>Seal new case</button>
       </div>
@@ -100,28 +116,31 @@ export function ActionPanel({
         <p className="selected-note">Selected case: {selectedId ? `#${selectedId}` : "none"}</p>
         <label>Proof URL<input value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} placeholder="https://github.com/org/repo/pull/1" /></label>
         <label>Proof text<textarea value={proofText} onChange={(e) => setProofText(e.target.value)} /></label>
-        <button disabled={isBusy || !writeClient || !selectedId} onClick={() => run("submit_proof", () => writeClient.writeContract({
-          address: CONTRACT_ADDRESS as Address,
-          functionName: "submit_proof",
-          args: [selectedId, proofUrl, proofText],
-          value: 0n,
-        }))}>Submit evidence</button>
+        <button disabled={isBusy || !writeClient || !selectedId || Boolean(selectedTask?.finalized)} onClick={() => {
+          const isRevision = selectedTask?.status === "NEEDS_REVISION";
+          return run(isRevision ? "resubmit_proof" : "submit_proof", () => writeClient.writeContract({
+            address: CONTRACT_ADDRESS as Address,
+            functionName: isRevision ? "resubmit_proof" : "submit_proof",
+            args: [selectedId, proofUrl, proofText],
+            value: 0n,
+          }));
+        }}>{selectedTask?.status === "NEEDS_REVISION" ? "Resubmit revised proof" : "Submit evidence"}</button>
       </div>
 
       <div className="settlement-row">
-        <button disabled={isBusy || !writeClient || !selectedId} onClick={() => run("evaluate_task", () => writeClient.writeContract({
+        <button disabled={isBusy || !writeClient || !selectedId || selectedTask?.status !== "SUBMITTED"} onClick={() => run("evaluate_task", () => writeClient.writeContract({
           address: CONTRACT_ADDRESS as Address,
           functionName: "evaluate_task",
           args: [selectedId],
           value: 0n,
         }))}>Run AI jury</button>
-        <button disabled={isBusy || !writeClient || !selectedId} onClick={() => run("finalize_task", () => writeClient.writeContract({
+        <button disabled={isBusy || !writeClient || !selectedId || !selectedTask?.evaluated || selectedTask?.decision === "NEEDS_REVISION" || Boolean(selectedTask?.finalized)} onClick={() => run("finalize_task", () => writeClient.writeContract({
           address: CONTRACT_ADDRESS as Address,
           functionName: "finalize_task",
           args: [selectedId],
           value: 0n,
         }), "finalized")}>Finalize payout</button>
-        <button disabled={isBusy || !writeClient || !selectedId} onClick={() => run("cancel_task", () => writeClient.writeContract({
+        <button disabled={isBusy || !writeClient || !selectedId || !(selectedTask?.status === "OPEN" || selectedTask?.status === "CLAIMED")} onClick={() => run("cancel_task", () => writeClient.writeContract({
           address: CONTRACT_ADDRESS as Address,
           functionName: "cancel_task",
           args: [selectedId],

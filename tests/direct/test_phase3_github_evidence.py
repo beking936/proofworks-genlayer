@@ -53,7 +53,7 @@ def mock_github_pr(direct_vm, owner="example", repo="repo", number=7, *, merged=
 
 def mock_approval_llm(direct_vm):
     direct_vm.mock_llm(
-        r"(?s).*NORMALIZED GITHUB EVIDENCE.*README\.md.*",
+        r"(?s).*NORMALIZED PROOF EVIDENCE.*README\.md.*",
         json.dumps({
             "decision": "APPROVE",
             "score": 96,

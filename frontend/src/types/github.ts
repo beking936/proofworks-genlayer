@@ -19,9 +19,13 @@ export interface BountyDraft {
   title: string;
   description: string;
   criteria: string;
+  sourceType: "MANUAL" | "GITHUB_ISSUE" | "GITHUB_PR" | "URL_SPEC";
+  sourceUrl: string;
   evidenceType: "TEXT_SUBMISSION" | "GITHUB_PR" | "URL_DOCUMENT";
   reward: string;
   proofUrl: string;
+  maxRevisions: string;
+  mode: "issue_bounty" | "retro_pr_review" | "manual";
   score: number;
   warnings: string[];
   sellingPoint: string;

@@ -89,7 +89,7 @@ export function draftFromGitHub(result: GitHubImportResult): BountyDraft {
   ));
 
   return {
-    title: isPull ? `Adjudicate PR #${result.number}: ${result.title}` : `Solve issue #${result.number}: ${result.title}`,
+    title: isPull ? `Retro review PR #${result.number}: ${result.title}` : `Solve issue #${result.number}: ${result.title}`,
     description: [
       `Repository: ${result.owner}/${result.repo}`,
       `Source: ${result.htmlUrl}`,
@@ -99,13 +99,17 @@ export function draftFromGitHub(result: GitHubImportResult): BountyDraft {
       fileList ? `\nChanged files:\n${fileList}` : "",
     ].filter(Boolean).join("\n"),
     criteria: isPull
-      ? `The submitted PR must materially satisfy the task requirements for ${result.owner}/${result.repo}. Validators should inspect the GitHub PR metadata and changed files, confirm the work is relevant, non-trivial, and aligned with the stated goal, then approve only if the evidence supports completion.`
+      ? `Retroactively evaluate whether PR #${result.number} is relevant, non-trivial, and aligned with its stated goal. This is not a future-work bounty; it is a completed-work adjudication.`
       : `A valid submission must include a GitHub pull request that addresses issue #${result.number} in ${result.owner}/${result.repo}. The PR should be relevant to the issue, include meaningful code/docs changes, and clearly satisfy the issue requirements.`,
-    evidenceType: isPull ? "GITHUB_PR" : "GITHUB_PR",
+    sourceType: isPull ? "GITHUB_PR" : "GITHUB_ISSUE",
+    sourceUrl: result.htmlUrl,
+    evidenceType: "GITHUB_PR",
     reward: score >= 80 ? "5" : "2",
     proofUrl: isPull ? result.htmlUrl : "",
+    maxRevisions: "2",
+    mode: isPull ? "retro_pr_review" : "issue_bounty",
     score,
-    warnings,
-    sellingPoint: score >= 80 ? "Clean bounty candidate" : "Needs tighter scope before funding",
+    warnings: isPull ? ["Retroactive PR review: proof URL is prefilled because the work already exists.", ...warnings] : warnings,
+    sellingPoint: score >= 80 ? (isPull ? "Ready for retroactive review" : "Clean issue bounty candidate") : "Needs tighter scope before funding",
   };
 }

@@ -24,7 +24,7 @@ https://tommycet.github.io/proofworks-genlayer/
 Build for GitHub Pages with:
 
 ```bash
-GITHUB_PAGES=true VITE_CONTRACT_ADDRESS=0x697dB374F592f11Fe85Efb081E7fA53c9684eb47 npm --prefix frontend run build
+GITHUB_PAGES=true VITE_CONTRACT_ADDRESS=0xe76307a73bc5456Bb31AB720F38eeBdf3fbcF7c7 npm --prefix frontend run build
 ```
 
 Then publish the contents of:

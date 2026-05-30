@@ -1,4 +1,5 @@
 export type EvidenceType = "TEXT_SUBMISSION" | "GITHUB_PR" | "GITHUB_ISSUE" | "URL_DOCUMENT";
+export type SourceType = "MANUAL" | "GITHUB_ISSUE" | "GITHUB_PR" | "URL_SPEC";
 
 export type TaskStatus =
   | "OPEN"
@@ -20,6 +21,8 @@ export interface ProofTask {
   title: string;
   description: string;
   acceptance_criteria: string;
+  source_type: SourceType | string;
+  source_url: string;
   evidence_type: EvidenceType | string;
   reward_amount: number | bigint;
   deadline: number | bigint;
@@ -34,6 +37,10 @@ export interface ProofTask {
   confidence: string;
   reason: string;
   required_revision: string;
+  reason_code: string;
+  missing_requirements: string;
+  revision_count: number | bigint;
+  max_revisions: number | bigint;
   finalized: boolean;
   worker_payout: number | bigint;
   creator_refund: number | bigint;

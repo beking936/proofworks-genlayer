@@ -22,6 +22,19 @@ STATUS_REFUNDED = "REFUNDED"
 STATUS_PARTIALLY_PAID = "PARTIALLY_PAID"
 STATUS_CANCELED = "CANCELED"
 
+SOURCE_MANUAL = "MANUAL"
+SOURCE_GITHUB_ISSUE = "GITHUB_ISSUE"
+SOURCE_GITHUB_PR = "GITHUB_PR"
+SOURCE_URL_SPEC = "URL_SPEC"
+
+REASON_SOLVES_ISSUE = "SOLVES_ISSUE"
+REASON_UNRELATED_PR = "UNRELATED_PR"
+REASON_INCOMPLETE_SCOPE = "INCOMPLETE_SCOPE"
+REASON_NEEDS_TESTS = "NEEDS_TESTS"
+REASON_NEEDS_REVIEW = "NEEDS_REVIEW"
+REASON_AMBIGUOUS = "AMBIGUOUS"
+REASON_OTHER = "OTHER"
+
 DECISION_APPROVE = "APPROVE"
 DECISION_REJECT = "REJECT"
 DECISION_PARTIAL = "PARTIAL"
@@ -149,19 +162,71 @@ def _parse_github_pr_url(url: str) -> dict:
 
 
 
+
+def _parse_github_issue_url(url: str) -> dict:
+    """Parse a GitHub issue URL into API fields."""
+    clean = _strip_url_noise(url)
+    prefix_https = "https://github.com/"
+    prefix_http = "http://github.com/"
+    prefix_bare = "github.com/"
+
+    if clean.startswith(prefix_https):
+        path = clean[len(prefix_https):]
+    elif clean.startswith(prefix_http):
+        path = clean[len(prefix_http):]
+    elif clean.startswith(prefix_bare):
+        path = clean[len(prefix_bare):]
+    else:
+        raise ValueError("invalid github host")
+
+    parts = [part.strip() for part in path.split("/") if len(part.strip()) > 0]
+    if len(parts) < 4:
+        raise ValueError("invalid github issue path")
+
+    owner = parts[0]
+    repo = parts[1]
+    kind = parts[2]
+    number_text = parts[3]
+    if len(owner) == 0 or len(repo) == 0 or kind != "issues":
+        raise ValueError("invalid github issue path")
+
+    digits = ""
+    for ch in number_text:
+        if ch >= "0" and ch <= "9":
+            digits += ch
+        else:
+            break
+    if len(digits) == 0:
+        raise ValueError("invalid github issue number")
+
+    number = _coerce_int(digits)
+    if number <= 0:
+        raise ValueError("invalid github issue number")
+
+    return {
+        "owner": owner,
+        "repo": repo,
+        "number": number,
+        "api_issue_url": f"https://api.github.com/repos/{owner}/{repo}/issues/{number}",
+    }
+
+
 def _build_adjudication_prompt(
     title: str,
     description: str,
     acceptance_criteria: str,
+    source_type: str,
+    source_url: str,
     evidence_type: str,
     proof_url: str,
     proof_text: str,
+    source_evidence: str,
     github_evidence: str,
 ) -> str:
     return f"""
 You are ProofWorks, a neutral GenLayer task fulfillment evaluator.
 
-Evaluate whether the submitted proof satisfies the task requirements.
+Evaluate whether the submitted proof satisfies the source work item and acceptance criteria.
 
 TASK TITLE:
 {title}
@@ -172,7 +237,13 @@ TASK DESCRIPTION:
 ACCEPTANCE CRITERIA:
 {acceptance_criteria}
 
-EVIDENCE TYPE:
+SOURCE TYPE:
+{source_type}
+
+SOURCE URL:
+{source_url}
+
+PROOF EVIDENCE TYPE:
 {evidence_type}
 
 SUBMITTED PROOF URL:
@@ -181,7 +252,10 @@ SUBMITTED PROOF URL:
 SUBMITTED PROOF TEXT:
 {proof_text}
 
-NORMALIZED GITHUB EVIDENCE, IF AVAILABLE:
+NORMALIZED SOURCE EVIDENCE, IF AVAILABLE:
+{source_evidence}
+
+NORMALIZED PROOF EVIDENCE, IF AVAILABLE:
 {github_evidence}
 
 Return ONLY a JSON object with exactly these keys:
@@ -190,6 +264,8 @@ Return ONLY a JSON object with exactly these keys:
 - payout_percent: integer 0-100
 - confidence: one of LOW, MEDIUM, HIGH
 - reason: concise explanation under 1000 characters
+- reason_code: one of SOLVES_ISSUE, UNRELATED_PR, INCOMPLETE_SCOPE, NEEDS_TESTS, NEEDS_REVIEW, AMBIGUOUS, OTHER
+- missing_requirements: array of short strings, empty array if none
 - required_revision: empty string unless decision is NEEDS_REVISION
 
 Decision rules:
@@ -197,6 +273,7 @@ Decision rules:
 - REJECT requires payout_percent 0.
 - PARTIAL requires payout_percent from 1 to 99.
 - NEEDS_REVISION requires payout_percent 0 and a non-empty required_revision.
+- For GitHub issue bounties, compare the source issue against the submitted PR and changed files.
 """.strip()
 
 
@@ -229,6 +306,28 @@ def _compact_github_pr_evidence(pr_data: dict, files_data) -> dict:
     }
 
 
+
+def _compact_github_issue_evidence(issue_data: dict) -> dict:
+    labels = []
+    raw_labels = issue_data.get("labels", [])
+    if isinstance(raw_labels, list):
+        for item in raw_labels[:20]:
+            if isinstance(item, dict):
+                labels.append(str(item.get("name", ""))[:80])
+            else:
+                labels.append(str(item)[:80])
+
+    return {
+        "title": str(issue_data.get("title", ""))[:500],
+        "body": str(issue_data.get("body", ""))[:3000],
+        "state": str(issue_data.get("state", ""))[:50],
+        "html_url": str(issue_data.get("html_url", ""))[:1000],
+        "labels": labels,
+        "comments": issue_data.get("comments", 0),
+        "author": str((issue_data.get("user") or {}).get("login", ""))[:100],
+    }
+
+
 def _is_valid_raw_evaluation(data) -> bool:
     """Pure validation helper safe to use inside validator functions."""
     try:
@@ -258,6 +357,19 @@ def _is_valid_raw_evaluation(data) -> bool:
         if len(revision) > 1000:
             return False
 
+        reason_code = _to_upper_string(data.get("reason_code", REASON_OTHER))
+        if reason_code not in (REASON_SOLVES_ISSUE, REASON_UNRELATED_PR, REASON_INCOMPLETE_SCOPE, REASON_NEEDS_TESTS, REASON_NEEDS_REVIEW, REASON_AMBIGUOUS, REASON_OTHER):
+            return False
+
+        missing = data.get("missing_requirements", [])
+        if not isinstance(missing, list):
+            return False
+        if len(missing) > 10:
+            return False
+        for item in missing:
+            if len(str(item)) > 200:
+                return False
+
         if decision == DECISION_APPROVE and payout_percent != 100:
             return False
         if decision == DECISION_REJECT and payout_percent != 0:
@@ -284,6 +396,8 @@ class Task:
     title: str
     description: str
     acceptance_criteria: str
+    source_type: str
+    source_url: str
     evidence_type: str
     reward_amount: u256
     deadline: u64
@@ -298,6 +412,10 @@ class Task:
     confidence: str
     reason: str
     required_revision: str
+    reason_code: str
+    missing_requirements: str
+    revision_count: u32
+    max_revisions: u32
     finalized: bool
     worker_payout: u256
     creator_refund: u256
@@ -333,6 +451,14 @@ class ProofWorksEscrow(gl.Contract):
             or evidence_type == EVIDENCE_TEXT_SUBMISSION
         )
 
+    def _is_supported_source_type(self, source_type: str) -> bool:
+        return (
+            source_type == SOURCE_MANUAL
+            or source_type == SOURCE_GITHUB_ISSUE
+            or source_type == SOURCE_GITHUB_PR
+            or source_type == SOURCE_URL_SPEC
+        )
+
     def _task_exists(self, task_id: u256) -> bool:
         return self.tasks.get(task_id, None) is not None
 
@@ -341,33 +467,50 @@ class ProofWorksEscrow(gl.Contract):
         self._require(task is not None, "TASK_NOT_FOUND")
         return task
 
-    @gl.public.write.payable
-    def create_task(
+    def _create_task_internal(
         self,
         title: str,
         description: str,
         acceptance_criteria: str,
+        source_type: str,
+        source_url: str,
         evidence_type: str,
         deadline: int,
         assigned_worker: str,
+        max_revisions: int,
     ) -> u256:
-        """Create a task.
-
-        `assigned_worker` may be the zero address or an empty string for an open task.
-        Phase 1 stores reward_amount as zero; payable escrow is added in Phase 4.
-        """
         clean_title = title.strip()
         clean_description = description.strip()
         clean_criteria = acceptance_criteria.strip()
+        clean_source_type = source_type.strip().upper()
+        clean_source_url = source_url.strip()
         clean_evidence_type = evidence_type.strip().upper()
 
         self._require(len(clean_title) > 0, "TITLE_REQUIRED")
-        self._require(len(clean_title) <= 120, "TITLE_TOO_LONG")
-        self._require(len(clean_description) <= 5000, "DESCRIPTION_TOO_LONG")
+        self._require(len(clean_title) <= 160, "TITLE_TOO_LONG")
+        self._require(len(clean_description) <= 7000, "DESCRIPTION_TOO_LONG")
         self._require(len(clean_criteria) > 0, "ACCEPTANCE_CRITERIA_REQUIRED")
-        self._require(len(clean_criteria) <= 5000, "ACCEPTANCE_CRITERIA_TOO_LONG")
+        self._require(len(clean_criteria) <= 7000, "ACCEPTANCE_CRITERIA_TOO_LONG")
+        self._require(self._is_supported_source_type(clean_source_type), "UNSUPPORTED_SOURCE_TYPE")
         self._require(self._is_supported_evidence_type(clean_evidence_type), "UNSUPPORTED_EVIDENCE_TYPE")
         self._require(deadline >= 0, "INVALID_DEADLINE")
+        self._require(max_revisions >= 0 and max_revisions <= 10, "INVALID_MAX_REVISIONS")
+        self._require(len(clean_source_url) <= 1000, "SOURCE_URL_TOO_LONG")
+
+        if clean_source_type == SOURCE_GITHUB_ISSUE:
+            try:
+                _parse_github_issue_url(clean_source_url)
+            except Exception:
+                raise gl.vm.UserError("INVALID_GITHUB_ISSUE_URL")
+            self._require(clean_evidence_type == EVIDENCE_GITHUB_PR, "GITHUB_ISSUE_REQUIRES_PR_PROOF")
+        elif clean_source_type == SOURCE_GITHUB_PR:
+            try:
+                _parse_github_pr_url(clean_source_url)
+            except Exception:
+                raise gl.vm.UserError("INVALID_SOURCE_GITHUB_PR_URL")
+            self._require(clean_evidence_type == EVIDENCE_GITHUB_PR, "GITHUB_PR_SOURCE_REQUIRES_PR_PROOF")
+        elif clean_source_type == SOURCE_URL_SPEC:
+            self._require(len(clean_source_url) > 0, "SOURCE_URL_REQUIRED")
 
         worker = ZERO_ADDRESS
         if len(assigned_worker.strip()) > 0:
@@ -391,6 +534,8 @@ class ProofWorksEscrow(gl.Contract):
             title=clean_title,
             description=clean_description,
             acceptance_criteria=clean_criteria,
+            source_type=clean_source_type,
+            source_url=clean_source_url,
             evidence_type=clean_evidence_type,
             reward_amount=reward_amount,
             deadline=u64(deadline),
@@ -405,12 +550,65 @@ class ProofWorksEscrow(gl.Contract):
             confidence="",
             reason="",
             required_revision="",
+            reason_code="",
+            missing_requirements="[]",
+            revision_count=u32(0),
+            max_revisions=u32(max_revisions),
             finalized=False,
             worker_payout=u256(0),
             creator_refund=u256(0),
         )
         self.total_escrowed = u256(int(self.total_escrowed) + int(reward_amount))
         return task_id
+
+    @gl.public.write.payable
+    def create_task(
+        self,
+        title: str,
+        description: str,
+        acceptance_criteria: str,
+        evidence_type: str,
+        deadline: int,
+        assigned_worker: str,
+    ) -> u256:
+        """Legacy-compatible task creation. Uses MANUAL source."""
+        return self._create_task_internal(
+            title,
+            description,
+            acceptance_criteria,
+            SOURCE_MANUAL,
+            "",
+            evidence_type,
+            deadline,
+            assigned_worker,
+            2,
+        )
+
+    @gl.public.write.payable
+    def create_case(
+        self,
+        title: str,
+        description: str,
+        acceptance_criteria: str,
+        source_type: str,
+        source_url: str,
+        evidence_type: str,
+        deadline: int,
+        assigned_worker: str,
+        max_revisions: int,
+    ) -> u256:
+        """Create a source-aware escrow case for Phase 6."""
+        return self._create_task_internal(
+            title,
+            description,
+            acceptance_criteria,
+            source_type,
+            source_url,
+            evidence_type,
+            deadline,
+            assigned_worker,
+            max_revisions,
+        )
 
     @gl.public.write
     def claim_task(self, task_id: int) -> None:
@@ -473,6 +671,8 @@ class ProofWorksEscrow(gl.Contract):
             "confidence": _to_upper_string(data.get("confidence", CONFIDENCE_MEDIUM)),
             "reason": str(data.get("reason", "")).strip(),
             "required_revision": str(data.get("required_revision", "")).strip(),
+            "reason_code": _to_upper_string(data.get("reason_code", REASON_OTHER)),
+            "missing_requirements": json.dumps(data.get("missing_requirements", []))[:2000],
         }
 
     def _status_for_decision(self, decision: str) -> str:
@@ -501,11 +701,27 @@ class ProofWorksEscrow(gl.Contract):
         title = task.title
         description = task.description
         acceptance_criteria = task.acceptance_criteria
+        source_type = task.source_type
+        source_url = task.source_url
         evidence_type = task.evidence_type
         proof_url = task.proof_url
         proof_text = task.proof_text
+        github_api_issue_url = ""
         github_api_pr_url = ""
         github_api_files_url = ""
+        if source_type == SOURCE_GITHUB_ISSUE:
+            try:
+                parsed_issue = _parse_github_issue_url(source_url)
+                github_api_issue_url = parsed_issue["api_issue_url"]
+            except Exception:
+                raise gl.vm.UserError("INVALID_GITHUB_ISSUE_URL")
+        elif source_type == SOURCE_GITHUB_PR:
+            try:
+                parsed_source_pr = _parse_github_pr_url(source_url)
+                github_api_issue_url = ""
+            except Exception:
+                raise gl.vm.UserError("INVALID_SOURCE_GITHUB_PR_URL")
+
         if evidence_type == EVIDENCE_GITHUB_PR:
             try:
                 parsed = _parse_github_pr_url(proof_url)
@@ -515,7 +731,18 @@ class ProofWorksEscrow(gl.Contract):
                 raise gl.vm.UserError("INVALID_GITHUB_PR_URL")
 
         def leader_fn() -> dict:
+            source_evidence = ""
             github_evidence = ""
+            if len(github_api_issue_url) > 0:
+                issue_response = gl.nondet.web.get(github_api_issue_url)
+                if issue_response.status < 200 or issue_response.status >= 300 or issue_response.body is None:
+                    raise gl.vm.UserError("GITHUB_ISSUE_FETCH_FAILED")
+                issue_data = json.loads(issue_response.body.decode("utf-8"))
+                source_evidence = json.dumps(
+                    _compact_github_issue_evidence(issue_data),
+                    sort_keys=True,
+                )[:5000]
+
             if len(github_api_pr_url) > 0:
                 pr_response = gl.nondet.web.get(github_api_pr_url)
                 if pr_response.status < 200 or pr_response.status >= 300 or pr_response.body is None:
@@ -534,9 +761,12 @@ class ProofWorksEscrow(gl.Contract):
                 title,
                 description,
                 acceptance_criteria,
+                source_type,
+                source_url,
                 evidence_type,
                 proof_url,
                 proof_text,
+                source_evidence,
                 github_evidence,
             )
             result = gl.nondet.exec_prompt(prompt, response_format="json")
@@ -560,7 +790,41 @@ class ProofWorksEscrow(gl.Contract):
         task.confidence = result["confidence"]
         task.reason = result["reason"]
         task.required_revision = result["required_revision"]
+        task.reason_code = result["reason_code"]
+        task.missing_requirements = result["missing_requirements"]
         task.status = self._status_for_decision(decision)
+
+
+    @gl.public.write
+    def resubmit_proof(self, task_id: int, proof_url: str, proof_text: str) -> None:
+        tid = u256(task_id)
+        task = self._get_existing_task(tid)
+        self._require(task.status == STATUS_NEEDS_REVISION, "TASK_NOT_IN_REVISION")
+        self._require(task.assigned_worker == gl.message.sender_address, "ONLY_ASSIGNED_WORKER")
+        self._require(int(task.revision_count) < int(task.max_revisions), "MAX_REVISIONS_REACHED")
+        self._require(not task.finalized, "TASK_ALREADY_FINALIZED")
+
+        clean_url = proof_url.strip()
+        clean_text = proof_text.strip()
+        self._require(len(clean_url) > 0 or len(clean_text) > 0, "PROOF_REQUIRED")
+        self._require(len(clean_url) <= 1000, "PROOF_URL_TOO_LONG")
+        self._require(len(clean_text) <= 5000, "PROOF_TEXT_TOO_LONG")
+        if task.evidence_type == EVIDENCE_GITHUB_PR or task.evidence_type == EVIDENCE_GITHUB_ISSUE or task.evidence_type == EVIDENCE_URL_DOCUMENT:
+            self._require(len(clean_url) > 0, "PROOF_URL_REQUIRED")
+
+        task.proof_url = clean_url
+        task.proof_text = clean_text
+        task.evaluated = False
+        task.decision = ""
+        task.score = u32(0)
+        task.payout_percent = u32(0)
+        task.confidence = ""
+        task.reason = ""
+        task.required_revision = ""
+        task.reason_code = ""
+        task.missing_requirements = "[]"
+        task.revision_count = u32(int(task.revision_count) + 1)
+        task.status = STATUS_SUBMITTED
 
 
     def _send_value_to_eoa(self, recipient: Address, amount: u256) -> None:
@@ -634,6 +898,8 @@ class ProofWorksEscrow(gl.Contract):
             "title": task.title,
             "description": task.description,
             "acceptance_criteria": task.acceptance_criteria,
+            "source_type": task.source_type,
+            "source_url": task.source_url,
             "evidence_type": task.evidence_type,
             "reward_amount": task.reward_amount,
             "deadline": task.deadline,
@@ -648,6 +914,10 @@ class ProofWorksEscrow(gl.Contract):
             "confidence": task.confidence,
             "reason": task.reason,
             "required_revision": task.required_revision,
+            "reason_code": task.reason_code,
+            "missing_requirements": task.missing_requirements,
+            "revision_count": task.revision_count,
+            "max_revisions": task.max_revisions,
             "finalized": task.finalized,
             "worker_payout": task.worker_payout,
             "creator_refund": task.creator_refund,

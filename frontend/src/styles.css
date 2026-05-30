@@ -371,3 +371,14 @@ button:disabled { opacity: .48; cursor: not-allowed; transform: none !important;
 .draft-lines ul { margin: 8px 0 0; padding-left: 18px; }
 .draft-lines em { color: rgba(21,18,13,.7); }
 @media (max-width: 1000px) { .architect-panel, .architect-result { grid-template-columns: 1fr; } .architect-input { grid-template-columns: 1fr; } }
+.evidence-room a { display: block; margin-top: 10px; font-family: var(--mono); overflow-wrap: anywhere; color: #783100; }
+.evidence-room em { display: block; margin-top: 10px; color: rgba(21,18,13,.62); }
+.room-row { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; font-family: var(--mono); font-size: 12px; }
+.room-row b { text-transform: uppercase; letter-spacing: .1em; color: rgba(21,18,13,.55); }
+.reason-code { display: inline-block; border: 2px solid var(--ink); background: var(--acid); padding: 6px 9px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; margin: 4px 0 8px; }
+.missing-list { margin: 10px 0; padding-left: 20px; }
+.missing-list li { margin: 4px 0; }
+.settlement-preview { border: 2px solid var(--ink); background: rgba(200,255,47,.2); padding: 12px; margin-top: 12px; display: grid; gap: 5px; }
+.settlement-preview span { font-family: var(--mono); text-transform: uppercase; font-size: 10px; letter-spacing: .12em; color: rgba(21,18,13,.62); }
+.settlement-preview strong { font-family: var(--mono); overflow-wrap: anywhere; }
+.settlement-preview small { color: rgba(21,18,13,.65); }
