@@ -35,3 +35,5 @@ artifacts/
 
 # Local tool caches
 .cache/
+.ssh/
+uploads/

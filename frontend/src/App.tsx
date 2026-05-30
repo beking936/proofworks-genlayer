@@ -33,9 +33,14 @@ export default function App() {
         <nav className="topbar">
           <div className="brand-mark"><span>PW</span><i /></div>
           <div className="network-ribbon">Studionet court // contract {shortAddress(CONTRACT_ADDRESS)}</div>
-          <button className="wallet-button" onClick={wallet.connect} disabled={wallet.isConnecting}>
-            {wallet.address ? shortAddress(wallet.address) : wallet.isConnecting ? "Summoning wallet…" : "Connect wallet"}
-          </button>
+          <div className="wallet-cluster">
+            <button className="wallet-button" onClick={wallet.useBurners}>
+              {wallet.mode === "burner" ? `Burner ${wallet.burnerRole}: ${shortAddress(wallet.address ?? undefined)}` : "Use free burners"}
+            </button>
+            <button className="wallet-button secondary" onClick={wallet.connect} disabled={wallet.isConnecting}>
+              {wallet.mode === "injected" && wallet.address ? shortAddress(wallet.address) : wallet.isConnecting ? "Summoning wallet…" : "Connect wallet"}
+            </button>
+          </div>
         </nav>
 
         <section className="hero-grid">
@@ -49,6 +54,21 @@ export default function App() {
             <div className="hero-actions">
               <button onClick={refresh}>Refresh docket</button>
               <a href="https://studio.genlayer.com" target="_blank" rel="noreferrer">Open GenLayer Studio</a>
+            </div>
+            <div className="burner-court">
+              <div>
+                <strong>Free Studionet burner mode</strong>
+                <span>No faucet required. Use Creator to create, Worker to submit proof.</span>
+              </div>
+              <div className="role-switcher">
+                <button className={wallet.burnerRole === "creator" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("creator")}>
+                  Creator {wallet.creatorAddress ? shortAddress(wallet.creatorAddress) : ""}
+                </button>
+                <button className={wallet.burnerRole === "worker" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("worker")}>
+                  Worker {wallet.workerAddress ? shortAddress(wallet.workerAddress) : ""}
+                </button>
+                <button onClick={wallet.resetBurners}>new pair</button>
+              </div>
             </div>
             {wallet.error ? <p className="wallet-error">{wallet.error}</p> : null}
           </div>
