@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { CONTRACT_ADDRESS, waitAccepted, waitFinalized } from "../lib/contract";
 import type { ActivityItem, EvidenceType, ProofTask } from "../types/task";
+import type { BountyDraft } from "../types/github";
 import { asNumber } from "../lib/format";
 
 function newId() {
@@ -13,11 +14,15 @@ export function ActionPanel({
   writeClient,
   onRefresh,
   pushActivity,
+  draft,
+  onDraftConsumed,
 }: {
   selectedTask: ProofTask | null;
   writeClient: any;
   onRefresh: () => Promise<void>;
   pushActivity: (item: ActivityItem) => void;
+  draft?: BountyDraft | null;
+  onDraftConsumed?: () => void;
 }) {
   const [title, setTitle] = useState("Patch the README oath");
   const [description, setDescription] = useState("Submit concise proof that the requested work is complete.");
@@ -29,6 +34,17 @@ export function ActionPanel({
   const [isBusy, setIsBusy] = useState(false);
 
   const selectedId = useMemo(() => selectedTask ? asNumber(selectedTask.task_id) : 0, [selectedTask]);
+
+  useEffect(() => {
+    if (!draft) return;
+    setTitle(draft.title);
+    setDescription(draft.description);
+    setCriteria(draft.criteria);
+    setEvidenceType(draft.evidenceType);
+    setReward(draft.reward);
+    setProofUrl(draft.proofUrl);
+    onDraftConsumed?.();
+  }, [draft, onDraftConsumed]);
 
   async function run(label: string, fn: () => Promise<`0x${string}`>, waitMode: "accepted" | "finalized" = "accepted") {
     if (!writeClient) throw new Error("Connect wallet first.");

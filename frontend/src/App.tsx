@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ActionPanel } from "./components/ActionPanel";
+import { BountyArchitect } from "./components/BountyArchitect";
 import { StatCard } from "./components/StatCard";
 import { TaskCard } from "./components/TaskCard";
 import { TaskDetail } from "./components/TaskDetail";
@@ -9,6 +10,7 @@ import { asNumber, formatTinyGen, shortAddress } from "./lib/format";
 import { useTasks } from "./hooks/useTasks";
 import { useWallet } from "./hooks/useWallet";
 import type { ActivityItem } from "./types/task";
+import type { BountyDraft } from "./types/github";
 import "./styles.css";
 
 export default function App() {
@@ -16,6 +18,7 @@ export default function App() {
   const wallet = useWallet();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [draft, setDraft] = useState<BountyDraft | null>(null);
 
   const selectedTask = useMemo(() => {
     if (selectedId == null) return tasks[0] ?? null;
@@ -89,6 +92,11 @@ export default function App() {
 
       {error ? <div className="error-banner">{error}</div> : null}
 
+      <BountyArchitect onApply={(nextDraft) => {
+        setDraft(nextDraft);
+        pushActivity({ id: `${Date.now()}-architect`, label: "architect", detail: "GitHub context loaded into case form", tone: "good" });
+      }} />
+
       <section className="workbench">
         <div className="docket-panel">
           <div className="section-heading">
@@ -111,7 +119,7 @@ export default function App() {
         <TaskDetail task={selectedTask} />
 
         <div className="right-rail">
-          <ActionPanel selectedTask={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} />
+          <ActionPanel selectedTask={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} draft={draft} onDraftConsumed={() => setDraft(null)} />
           <TransactionConsole items={activity} />
         </div>
       </section>
