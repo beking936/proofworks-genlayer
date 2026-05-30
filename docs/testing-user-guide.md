@@ -291,3 +291,28 @@ The current GitHub Pages deployment is available at:
 ```txt
 https://tommycet.github.io/proofworks-genlayer/
 ```
+
+
+## Same-repository rule for GitHub issue bounties
+
+For `source_type = GITHUB_ISSUE`, the submitted PR proof must be from the same GitHub owner/repository as the source issue.
+
+Example valid pair:
+
+```txt
+source_url: https://github.com/tommycet/proofworks-genlayer/issues/2
+proof_url:  https://github.com/tommycet/proofworks-genlayer/pull/3
+```
+
+Invalid pair:
+
+```txt
+source_url: https://github.com/tommycet/proofworks-genlayer/issues/2
+proof_url:  https://github.com/other/repo/pull/3
+```
+
+Invalid pairs fail with:
+
+```txt
+GITHUB_REPO_MISMATCH
+```

@@ -2,41 +2,53 @@
 
 Date: 2026-05-30
 
-## Contract
+## Current Phase 6 Contract
 
 ```txt
-0xe76307a73bc5456Bb31AB720F38eeBdf3fbcF7c7
+0xB9B31ABA945D9056e71d53CB4E2c71090D3FaA57
 ```
 
 Deploy transaction:
 
 ```txt
-0xb44a2c86f0486d248e33dfe2673fdf3ce50c3beaea78732c3216cbb4d8c4ab82
+0x9a17a565da2098abf93ed49dd6bd0c6faf27bbe2c10682aeabca4f4bac16697d
 ```
+
+## Important product rule
+
+For `source_type = GITHUB_ISSUE`, the submitted `GITHUB_PR` proof must be from the **same GitHub owner/repository** as the issue.
+
+If source issue and PR are from different repositories, the contract rejects evaluation with:
+
+```txt
+GITHUB_REPO_MISMATCH
+```
+
+This prevents fake/circular-looking adjudication where a source issue in one repo is matched against an unrelated PR from another repo.
 
 ## Phase 6 capabilities verified
 
 - `create_case` with `source_type = GITHUB_ISSUE`
 - `source_url` as GitHub issue
 - `evidence_type = GITHUB_PR`
-- worker submits a GitHub PR proof URL
+- worker submits a GitHub PR proof URL from the same repo
 - `evaluate_task` fetches both source issue and proof PR evidence
 - AI jury compares issue vs PR
 - result includes `reason_code` and `missing_requirements`
 - `finalize_task` pays worker after FINALIZED
 
-## Smoke test issue and PR
+## Same-repository smoke test
 
 Source issue:
 
 ```txt
-https://github.com/tommycet/proofworks-genlayer/issues/1
+https://github.com/tommycet/proofworks-genlayer/issues/2
 ```
 
 Proof PR:
 
 ```txt
-https://github.com/zarazhangrui/follow-builders/pull/43
+https://github.com/tommycet/proofworks-genlayer/pull/3
 ```
 
 ## Transactions
@@ -44,25 +56,25 @@ https://github.com/zarazhangrui/follow-builders/pull/43
 Create case:
 
 ```txt
-0x61ed1b135fb702468e070210ac9275e2d5bd8295a2629c80b8b32d802a9e7971
+0x73fa581c2a0d1817d296ef354e4f0c35f0b6beace5391fdbcacd9cd77960a244
 ```
 
 Submit proof:
 
 ```txt
-0x200b8804075c402d73e6063a854e5aa5f563a21c4b460c0df1ea66c14d848458
+0xf7df47647f9b3042883ddbe44f1b8361171318f8651e7eb2f8eab69b334e8e41
 ```
 
 Evaluate:
 
 ```txt
-0xd0abf75249cbaffaea0c2cffeb3453389a72033013daaac940273e78c6785395
+0x01d98f37f46cba8906a86470a26304ba892ef97c6ff2aff5ed9bdfdd4aecbcb2
 ```
 
 Finalize:
 
 ```txt
-0xe26e22e3d48a2e5919cfeb8ffe87716216f4c9a9b631ee189349223d38df8fab
+0xd6822b2c68b9b473e5f697dc83ff05e07bcca7b77995b0cceeb4429d4f9a6d26
 ```
 
 ## Evaluation result
@@ -77,4 +89,8 @@ status after finalize: PAID
 worker_payout: 1
 ```
 
-This verifies the core Phase 6 grant-relevant flow: GitHub issue bounty → GitHub PR proof → GenLayer AI adjudication → escrow finalization.
+This verifies the real Phase 6 grant-relevant flow:
+
+```txt
+GitHub issue bounty → same-repo GitHub PR proof → GenLayer AI adjudication → escrow finalization
+```
