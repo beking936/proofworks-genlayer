@@ -32,15 +32,13 @@ export async function importGitHubUrl(input: string): Promise<GitHubImportResult
     fetch(mainUrl, { headers: { Accept: "application/vnd.github+json" } }),
   ]);
 
-  if (!issueRes.ok || !mainRes.ok) {
-    throw new Error(`GitHub returned ${issueRes.status}/${mainRes.status}. Is the repository public?`);
-  }
+  const apiBlocked = !issueRes.ok || !mainRes.ok;
 
-  const issue = await issueRes.json();
-  const main = await mainRes.json();
+  const issue = apiBlocked ? {} : await issueRes.json();
+  const main = apiBlocked ? {} : await mainRes.json();
   let files: GitHubImportResult["files"] = undefined;
 
-  if (parsed.kind === "pull") {
+  if (parsed.kind === "pull" && !apiBlocked) {
     const filesRes = await fetch(`${base}/pulls/${parsed.number}/files`, { headers: { Accept: "application/vnd.github+json" } });
     if (filesRes.ok) {
       const raw = await filesRes.json();
@@ -60,14 +58,14 @@ export async function importGitHubUrl(input: string): Promise<GitHubImportResult
     repo: parsed.repo,
     number: parsed.number,
     htmlUrl: parsed.htmlUrl,
-    title: String(main.title ?? issue.title ?? ""),
-    body: String(main.body ?? issue.body ?? ""),
-    state: String(main.state ?? issue.state ?? ""),
-    labels: Array.isArray(issue.labels) ? issue.labels.map((l: any) => String(l.name ?? l)) : [],
+    title: String(main.title ?? issue.title ?? `${parsed.owner}/${parsed.repo} ${parsed.kind} #${parsed.number}`),
+    body: String(main.body ?? issue.body ?? (apiBlocked ? `GitHub API returned ${issueRes.status}/${mainRes.status} from this browser session. ProofWorks created a URL-only draft; the GenLayer contract will re-fetch public evidence during AI jury execution.` : "")),
+    state: String(main.state ?? issue.state ?? (apiBlocked ? "api-limited" : "")),
+    labels: apiBlocked ? ["api-limited"] : (Array.isArray(issue.labels) ? issue.labels.map((l: any) => String(l.name ?? l)) : []),
     comments: Number(issue.comments ?? 0),
     createdAt: String(issue.created_at ?? main.created_at ?? ""),
     updatedAt: String(issue.updated_at ?? main.updated_at ?? ""),
-    author: String((issue.user ?? main.user ?? {}).login ?? "unknown"),
+    author: String((issue.user ?? main.user ?? {}).login ?? (apiBlocked ? "api-limited" : "unknown")),
     files,
   };
 }
@@ -80,6 +78,7 @@ export function draftFromGitHub(result: GitHubImportResult): BountyDraft {
     result.labels.some((l) => l.toLowerCase().includes(label))
   );
   const warnings: string[] = [];
+  if (result.labels.includes("api-limited")) warnings.push("GitHub API was rate-limited/blocked in the browser; this is a URL-only draft. The contract re-fetches evidence during AI jury.");
   if (hasManyComments) warnings.push("High comment count: clarify scope before funding.");
   if (vagueSignals.length) warnings.push(`Labels suggest ambiguity: ${vagueSignals.join(", ")}.`);
   if (!result.body || result.body.length < 80) warnings.push("Description is short; acceptance criteria should be explicit.");
