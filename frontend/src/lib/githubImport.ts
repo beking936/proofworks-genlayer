@@ -21,6 +21,42 @@ export function parseGitHubUrl(input: string) {
   };
 }
 
+function extractReaderTitle(markdown: string, fallback: string): string {
+  const titleLine = markdown.split("\n").find((line) => line.startsWith("Title: "));
+  if (titleLine) return titleLine.replace("Title: ", "").trim();
+  const heading = markdown.split("\n").find((line) => line.startsWith("# "));
+  if (heading) return heading.replace(/^#\s+/, "").replace(/ · .*$/, "").trim();
+  return fallback;
+}
+
+function extractReaderBody(markdown: string): string {
+  const marker = "Markdown Content:";
+  const idx = markdown.indexOf(marker);
+  const body = idx >= 0 ? markdown.slice(idx + marker.length) : markdown;
+  return body
+    .replace(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .filter((line) => !line.includes("Skip to content") && !line.includes("Navigation Menu") && !line.includes("Toggle navigation"))
+    .join("\n")
+    .trim()
+    .slice(0, 2200);
+}
+
+async function fetchReaderFallback(htmlUrl: string): Promise<{ title: string; body: string } | null> {
+  try {
+    const readerUrl = "https://r.jina.ai/" + htmlUrl;
+    const response = await fetch(readerUrl, { headers: { Accept: "text/plain" } });
+    if (!response.ok) return null;
+    const text = await response.text();
+    return {
+      title: extractReaderTitle(text, htmlUrl),
+      body: extractReaderBody(text),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function importGitHubUrl(input: string): Promise<GitHubImportResult> {
   const parsed = parseGitHubUrl(input);
   const base = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}`;
@@ -34,6 +70,7 @@ export async function importGitHubUrl(input: string): Promise<GitHubImportResult
 
   const apiBlocked = !issueRes.ok || !mainRes.ok;
 
+  const readerFallback = apiBlocked ? await fetchReaderFallback(parsed.htmlUrl) : null;
   const issue = apiBlocked ? {} : await issueRes.json();
   const main = apiBlocked ? {} : await mainRes.json();
   let files: GitHubImportResult["files"] = undefined;
@@ -58,8 +95,8 @@ export async function importGitHubUrl(input: string): Promise<GitHubImportResult
     repo: parsed.repo,
     number: parsed.number,
     htmlUrl: parsed.htmlUrl,
-    title: String(main.title ?? issue.title ?? `${parsed.owner}/${parsed.repo} ${parsed.kind} #${parsed.number}`),
-    body: String(main.body ?? issue.body ?? (apiBlocked ? `GitHub API returned ${issueRes.status}/${mainRes.status} from this browser session. ProofWorks created a URL-only draft; the GenLayer contract will re-fetch public evidence during AI jury execution.` : "")),
+    title: String(main.title ?? issue.title ?? readerFallback?.title ?? `${parsed.owner}/${parsed.repo} ${parsed.kind} #${parsed.number}`),
+    body: String(main.body ?? issue.body ?? readerFallback?.body ?? (apiBlocked ? `GitHub API returned ${issueRes.status}/${mainRes.status} from this browser session. ProofWorks created a URL-only draft; the GenLayer contract will re-fetch public evidence during AI jury execution.` : "")),
     state: String(main.state ?? issue.state ?? (apiBlocked ? "api-limited" : "")),
     labels: apiBlocked ? ["api-limited"] : (Array.isArray(issue.labels) ? issue.labels.map((l: any) => String(l.name ?? l)) : []),
     comments: Number(issue.comments ?? 0),
@@ -78,7 +115,7 @@ export function draftFromGitHub(result: GitHubImportResult): BountyDraft {
     result.labels.some((l) => l.toLowerCase().includes(label))
   );
   const warnings: string[] = [];
-  if (result.labels.includes("api-limited")) warnings.push("GitHub API was rate-limited/blocked in the browser; this is a URL-only draft. The contract re-fetches evidence during AI jury.");
+  if (result.labels.includes("api-limited")) warnings.push("GitHub API was rate-limited/blocked in the browser, so ProofWorks used a reader fallback. The contract still re-fetches evidence during AI jury.");
   if (hasManyComments) warnings.push("High comment count: clarify scope before funding.");
   if (vagueSignals.length) warnings.push(`Labels suggest ambiguity: ${vagueSignals.join(", ")}.`);
   if (!result.body || result.body.length < 80) warnings.push("Description is short; acceptance criteria should be explicit.");
