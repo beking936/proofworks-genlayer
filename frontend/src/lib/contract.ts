@@ -3,6 +3,7 @@ import { studionet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
 import type { Address } from "viem";
 import type { EscrowSummary, ProofTask } from "../types/task";
+import type { Milestone } from "../types/milestone";
 
 export const DEFAULT_CONTRACT_ADDRESS = "0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A" as Address;
 export const CONTRACT_ADDRESS = (import.meta.env.VITE_CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS) as Address;
@@ -40,6 +41,23 @@ export async function readSummary(): Promise<EscrowSummary> {
     functionName: "get_escrow_summary",
     args: [],
   })) as unknown as EscrowSummary;
+}
+
+
+export async function readMilestone(taskId: number, milestoneIndex: number): Promise<Milestone> {
+  return (await readClient.readContract({
+    address: CONTRACT_ADDRESS,
+    functionName: "get_milestone",
+    args: [taskId, milestoneIndex],
+  })) as unknown as Milestone;
+}
+
+export async function readTaskMilestones(task: ProofTask): Promise<Milestone[]> {
+  const count = Number((task as any).milestone_count ?? 0);
+  if (!task || !(task as any).is_milestone_task || count <= 0) return [];
+  const indexes = Array.from({ length: count }, (_, i) => i + 1);
+  const milestones = await Promise.all(indexes.map((i) => readMilestone(Number(task.task_id), i).catch(() => null)));
+  return milestones.filter(Boolean) as Milestone[];
 }
 
 export async function readAllTasks(): Promise<ProofTask[]> {

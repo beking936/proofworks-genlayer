@@ -780,16 +780,79 @@ class ProofWorksEscrow(gl.Contract):
         milestone = self._get_existing_milestone(tid, milestone_index)
         self._require(milestone.status == STATUS_SUBMITTED, "MILESTONE_NOT_SUBMITTED")
         self._require(not milestone.evaluated, "MILESTONE_ALREADY_EVALUATED")
-        prompt = _build_adjudication_prompt(task.title + " / " + milestone.title, task.description, task.acceptance_criteria + "\nMilestone criteria: " + milestone.acceptance_criteria, task.source_type, task.source_url, task.evidence_type, milestone.proof_url, milestone.proof_text, "", "")
+
+        title = task.title + " / " + milestone.title
+        description = task.description
+        acceptance_criteria = task.acceptance_criteria + "\nMilestone criteria: " + milestone.acceptance_criteria
+        source_type = task.source_type
+        source_url = task.source_url
+        evidence_type = task.evidence_type
+        proof_url = milestone.proof_url
+        proof_text = milestone.proof_text
+        github_api_issue_url = ""
+        github_api_pr_url = ""
+        github_api_files_url = ""
+        source_owner = ""
+        source_repo = ""
+
+        if source_type == SOURCE_GITHUB_ISSUE:
+            try:
+                parsed_issue = _parse_github_issue_url(source_url)
+                github_api_issue_url = parsed_issue["api_issue_url"]
+                source_owner = parsed_issue["owner"]
+                source_repo = parsed_issue["repo"]
+            except Exception:
+                raise gl.vm.UserError("INVALID_GITHUB_ISSUE_URL")
+        elif source_type == SOURCE_GITHUB_PR:
+            try:
+                parsed_source_pr = _parse_github_pr_url(source_url)
+                source_owner = parsed_source_pr["owner"]
+                source_repo = parsed_source_pr["repo"]
+            except Exception:
+                raise gl.vm.UserError("INVALID_SOURCE_GITHUB_PR_URL")
+
+        if evidence_type == EVIDENCE_GITHUB_PR:
+            try:
+                parsed = _parse_github_pr_url(proof_url)
+                if source_type == SOURCE_GITHUB_ISSUE and (parsed["owner"] != source_owner or parsed["repo"] != source_repo):
+                    raise gl.vm.UserError("GITHUB_REPO_MISMATCH")
+                github_api_pr_url = parsed["api_pr_url"]
+                github_api_files_url = parsed["api_files_url"]
+            except gl.vm.UserError:
+                raise
+            except Exception:
+                raise gl.vm.UserError("INVALID_GITHUB_PR_URL")
+
         def leader_fn() -> dict:
+            source_evidence = ""
+            github_evidence = ""
+            if len(github_api_issue_url) > 0:
+                issue_response = gl.nondet.web.get(github_api_issue_url)
+                if issue_response.status < 200 or issue_response.status >= 300 or issue_response.body is None:
+                    raise gl.vm.UserError("GITHUB_ISSUE_FETCH_FAILED")
+                issue_data = json.loads(issue_response.body.decode("utf-8"))
+                source_evidence = json.dumps(_compact_github_issue_evidence(issue_data), sort_keys=True)[:5000]
+            if len(github_api_pr_url) > 0:
+                pr_response = gl.nondet.web.get(github_api_pr_url)
+                if pr_response.status < 200 or pr_response.status >= 300 or pr_response.body is None:
+                    raise gl.vm.UserError("GITHUB_PR_FETCH_FAILED")
+                files_response = gl.nondet.web.get(github_api_files_url)
+                if files_response.status < 200 or files_response.status >= 300 or files_response.body is None:
+                    raise gl.vm.UserError("GITHUB_FILES_FETCH_FAILED")
+                pr_data = json.loads(pr_response.body.decode("utf-8"))
+                files_data = json.loads(files_response.body.decode("utf-8"))
+                github_evidence = json.dumps(_compact_github_pr_evidence(pr_data, files_data), sort_keys=True)[:6000]
+            prompt = _build_adjudication_prompt(title, description, acceptance_criteria, source_type, source_url, evidence_type, proof_url, proof_text, source_evidence, github_evidence)
             result = gl.nondet.exec_prompt(prompt, response_format="json")
             if not isinstance(result, dict):
                 raise gl.vm.UserError("LLM_RETURNED_NON_DICT")
             return result
+
         def validator_fn(leaders_res) -> bool:
             if not isinstance(leaders_res, gl.vm.Return):
                 return False
             return _is_valid_raw_evaluation(leaders_res.calldata)
+
         result = self._normalize_evaluation_result(gl.vm.run_nondet_unsafe(leader_fn, validator_fn))
         decision = result["decision"]
         milestone.evaluated = True
@@ -802,6 +865,40 @@ class ProofWorksEscrow(gl.Contract):
         milestone.reason_code = result["reason_code"]
         milestone.missing_requirements = result["missing_requirements"]
         milestone.status = self._status_for_decision(decision)
+        if decision == DECISION_NEEDS_REVISION:
+            worker_rep = self._get_reputation(task.assigned_worker)
+            worker_rep.revisions_requested = u32(int(worker_rep.revisions_requested) + 1)
+            self.reputations[task.assigned_worker] = worker_rep
+
+
+    @gl.public.write
+    def resubmit_milestone_proof(self, task_id: int, milestone_index: int, proof_url: str, proof_text: str) -> None:
+        tid = u256(task_id)
+        task = self._get_existing_task(tid)
+        self._require(task.is_milestone_task, "TASK_NOT_MILESTONE")
+        milestone = self._get_existing_milestone(tid, milestone_index)
+        self._require(milestone.status == STATUS_NEEDS_REVISION, "MILESTONE_NOT_IN_REVISION")
+        self._require(task.assigned_worker == gl.message.sender_address, "ONLY_ASSIGNED_WORKER")
+        self._require(int(milestone.revision_count) < int(task.max_revisions), "MAX_REVISIONS_REACHED")
+        self._require(not milestone.finalized, "MILESTONE_ALREADY_FINALIZED")
+        clean_url = proof_url.strip()
+        clean_text = proof_text.strip()
+        self._require(len(clean_url) > 0 or len(clean_text) > 0, "PROOF_REQUIRED")
+        if task.evidence_type == EVIDENCE_GITHUB_PR or task.evidence_type == EVIDENCE_URL_DOCUMENT:
+            self._require(len(clean_url) > 0, "PROOF_URL_REQUIRED")
+        milestone.proof_url = clean_url
+        milestone.proof_text = clean_text
+        milestone.evaluated = False
+        milestone.decision = ""
+        milestone.score = u32(0)
+        milestone.payout_percent = u32(0)
+        milestone.confidence = ""
+        milestone.reason = ""
+        milestone.required_revision = ""
+        milestone.reason_code = ""
+        milestone.missing_requirements = "[]"
+        milestone.revision_count = u32(int(milestone.revision_count) + 1)
+        milestone.status = STATUS_SUBMITTED
 
     @gl.public.write
     def finalize_milestone(self, task_id: int, milestone_index: int) -> None:
@@ -825,17 +922,28 @@ class ProofWorksEscrow(gl.Contract):
         task.milestones_finalized = u32(int(task.milestones_finalized) + 1)
         task.milestone_finalized_amount = u256(int(task.milestone_finalized_amount) + amount)
         self.total_finalized = u256(int(self.total_finalized) + amount)
+        creator_rep = self._get_reputation(task.creator)
+        worker_rep = self._get_reputation(task.assigned_worker)
+        creator_rep.total_paid = u256(int(creator_rep.total_paid) + int(worker_payout))
+        creator_rep.total_refunded = u256(int(creator_rep.total_refunded) + int(creator_refund))
+        worker_rep.total_earned = u256(int(worker_rep.total_earned) + int(worker_payout))
         if milestone.decision == DECISION_APPROVE:
             milestone.status = STATUS_PAID
+            worker_rep.tasks_approved = u32(int(worker_rep.tasks_approved) + 1)
         elif milestone.decision == DECISION_REJECT:
             milestone.status = STATUS_REFUNDED
+            worker_rep.tasks_rejected = u32(int(worker_rep.tasks_rejected) + 1)
         elif milestone.decision == DECISION_PARTIAL:
             milestone.status = STATUS_PARTIALLY_PAID
+            worker_rep.tasks_partial = u32(int(worker_rep.tasks_partial) + 1)
         else:
             raise gl.vm.UserError("UNFINALIZABLE_DECISION")
         if int(task.milestones_finalized) >= int(task.milestone_count):
             task.finalized = True
             task.status = STATUS_PAID
+            worker_rep.tasks_completed = u32(int(worker_rep.tasks_completed) + 1)
+        self.reputations[task.creator] = creator_rep
+        self.reputations[task.assigned_worker] = worker_rep
 
     @gl.public.write
     def claim_task(self, task_id: int) -> None:

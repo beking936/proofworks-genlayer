@@ -382,3 +382,22 @@ button:disabled { opacity: .48; cursor: not-allowed; transform: none !important;
 .settlement-preview span { font-family: var(--mono); text-transform: uppercase; font-size: 10px; letter-spacing: .12em; color: rgba(21,18,13,.62); }
 .settlement-preview strong { font-family: var(--mono); overflow-wrap: anywhere; }
 .settlement-preview small { color: rgba(21,18,13,.65); }
+.center-stack { display: grid; gap: 18px; }
+.checkline { display: flex !important; grid-template-columns: auto 1fr !important; align-items: center; gap: 8px !important; }
+.checkline input { width: auto !important; }
+.milestone-form { border: 2px dashed var(--ink); padding: 10px; display: grid; grid-template-columns: 1fr 80px; gap: 8px; background: rgba(200,255,47,.12); }
+.milestone-form label:nth-child(3n) { grid-column: 1 / -1; }
+.milestone-room { border: 2px solid var(--ink); background: rgba(239, 227, 196, .9); box-shadow: 7px 7px 0 rgba(21,18,13,.7); padding: 16px; }
+.milestone-room__head { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 12px; }
+.milestone-room__head span { font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
+.milestone-card { border: 2px solid var(--ink); background: rgba(255,247,223,.68); padding: 12px; margin-top: 12px; }
+.milestone-card__top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.milestone-card p { margin: 8px 0; }
+.milestone-card small { font-family: var(--mono); color: rgba(21,18,13,.65); }
+.milestone-card textarea { width: 100%; min-height: 72px; border: 2px solid var(--ink); background: var(--bone); padding: 10px; margin-top: 10px; }
+.milestone-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.milestone-actions button { border: 2px solid var(--ink); background: var(--ink); color: var(--bone); padding: 9px 11px; box-shadow: 3px 3px 0 var(--vermilion); }
+.milestone-actions button:disabled { opacity: .35; }
+.milestone-verdict { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+.milestone-verdict strong { font-family: var(--display); font-size: 28px; }
+.milestone-verdict span { margin-left: 8px; font-family: var(--mono); background: var(--acid); border: 1px solid var(--ink); padding: 3px 6px; }

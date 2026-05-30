@@ -5,6 +5,7 @@ import { StatCard } from "./components/StatCard";
 import { TaskCard } from "./components/TaskCard";
 import { TaskDetail } from "./components/TaskDetail";
 import { TransactionConsole } from "./components/TransactionConsole";
+import { MilestoneRoom } from "./components/MilestoneRoom";
 import { CONTRACT_ADDRESS } from "./lib/contract";
 import { asNumber, formatTinyGen, shortAddress } from "./lib/format";
 import { useTasks } from "./hooks/useTasks";
@@ -116,7 +117,7 @@ export default function App() {
           </div>
         </div>
 
-        <TaskDetail task={selectedTask} />
+        <div className="center-stack"><TaskDetail task={selectedTask} /><MilestoneRoom task={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} /></div>
 
         <div className="right-rail">
           <ActionPanel selectedTask={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} draft={draft} onDraftConsumed={() => setDraft(null)} />

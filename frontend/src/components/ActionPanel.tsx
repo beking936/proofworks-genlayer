@@ -35,6 +35,16 @@ export function ActionPanel({
   const [proofText, setProofText] = useState("done");
   const [maxRevisions, setMaxRevisions] = useState("2");
   const [isBusy, setIsBusy] = useState(false);
+  const [milestoneMode, setMilestoneMode] = useState(false);
+  const [m1Title, setM1Title] = useState("Design");
+  const [m1Criteria, setM1Criteria] = useState("Submit design proof");
+  const [m1Percent, setM1Percent] = useState("20");
+  const [m2Title, setM2Title] = useState("Implementation");
+  const [m2Criteria, setM2Criteria] = useState("Submit implementation proof");
+  const [m2Percent, setM2Percent] = useState("50");
+  const [m3Title, setM3Title] = useState("Tests");
+  const [m3Criteria, setM3Criteria] = useState("Submit tests proof");
+  const [m3Percent, setM3Percent] = useState("30");
 
   const selectedId = useMemo(() => selectedTask ? asNumber(selectedTask.task_id) : 0, [selectedTask]);
 
@@ -103,12 +113,18 @@ export function ActionPanel({
           <label>Reward, tiny test unit<input value={reward} onChange={(e) => setReward(e.target.value)} inputMode="numeric" /></label>
           <label>Max revisions<input value={maxRevisions} onChange={(e) => setMaxRevisions(e.target.value)} inputMode="numeric" /></label>
         </div>
-        <button disabled={isBusy || !writeClient} onClick={() => run("create_task", () => writeClient.writeContract({
+        <label className="checkline"><input type="checkbox" checked={milestoneMode} onChange={(e) => setMilestoneMode(e.target.checked)} /> Milestone escrow mode</label>
+        {milestoneMode ? <div className="milestone-form">
+          <label>M1 title<input value={m1Title} onChange={(e) => setM1Title(e.target.value)} /></label><label>M1 %<input value={m1Percent} onChange={(e) => setM1Percent(e.target.value)} /></label><label>M1 criteria<textarea value={m1Criteria} onChange={(e) => setM1Criteria(e.target.value)} /></label>
+          <label>M2 title<input value={m2Title} onChange={(e) => setM2Title(e.target.value)} /></label><label>M2 %<input value={m2Percent} onChange={(e) => setM2Percent(e.target.value)} /></label><label>M2 criteria<textarea value={m2Criteria} onChange={(e) => setM2Criteria(e.target.value)} /></label>
+          <label>M3 title<input value={m3Title} onChange={(e) => setM3Title(e.target.value)} /></label><label>M3 %<input value={m3Percent} onChange={(e) => setM3Percent(e.target.value)} /></label><label>M3 criteria<textarea value={m3Criteria} onChange={(e) => setM3Criteria(e.target.value)} /></label>
+        </div> : null}
+        <button disabled={isBusy || !writeClient} onClick={() => run(milestoneMode ? "create_milestone_case" : "create_case", () => writeClient.writeContract({
           address: CONTRACT_ADDRESS as Address,
-          functionName: "create_case",
-          args: [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2")],
+          functionName: milestoneMode ? "create_milestone_case" : "create_case",
+          args: milestoneMode ? [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2"), m1Title, m1Criteria, Number(m1Percent || "0"), m2Title, m2Criteria, Number(m2Percent || "0"), m3Title, m3Criteria, Number(m3Percent || "0")] : [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2")],
           value: BigInt(reward || "0"),
-        }))}>Seal new case</button>
+        }))}>{milestoneMode ? "Seal milestone case" : "Seal new case"}</button>
       </div>
 
       <div className="form-slab">
