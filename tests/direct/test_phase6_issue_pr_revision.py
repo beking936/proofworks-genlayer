@@ -112,6 +112,14 @@ def test_issue_pr_evaluation_uses_source_and_proof(contract, direct_vm, direct_b
     assert json.loads(task["missing_requirements"]) == []
 
 
+def test_issue_pr_repo_mismatch_reverts(contract, direct_vm, direct_bob):
+    task_id = create_issue_case(contract)
+    with direct_vm.prank(direct_bob):
+        contract.submit_proof(task_id, "https://github.com/other/repo/pull/99", "PR from wrong repo")
+    with direct_vm.expect_revert("GITHUB_REPO_MISMATCH"):
+        contract.evaluate_task(task_id)
+
+
 def test_needs_revision_then_resubmit_and_approve(contract, direct_vm, direct_bob):
     task_id = create_issue_case(contract)
     submit_pr(contract, direct_vm, direct_bob, task_id)

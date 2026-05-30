@@ -5,7 +5,7 @@ Status: **planning only**. No code changes in this file. This spec describes how
 Current live Studionet contract before Phase 6:
 
 ```txt
-0xe76307a73bc5456Bb31AB720F38eeBdf3fbcF7c7
+0xB9B31ABA945D9056e71d53CB4E2c71090D3FaA57
 ```
 
 Current public frontend:

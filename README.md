@@ -35,7 +35,7 @@ Studionet should be tested first with faucet GEN, then Bradbury.
 
 ## Current Studionet deployment
 
-- Contract: `0xe76307a73bc5456Bb31AB720F38eeBdf3fbcF7c7`
+- Contract: `0xB9B31ABA945D9056e71d53CB4E2c71090D3FaA57`
 - Deploy tx: `0x7be849bd8534717164abcc421b60ea3cdad25f6596fb43ec541b563c85401e9c`
 - Smoke test: see `docs/deployments/studionet-smoke-test.md`
 

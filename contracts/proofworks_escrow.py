@@ -709,24 +709,34 @@ class ProofWorksEscrow(gl.Contract):
         github_api_issue_url = ""
         github_api_pr_url = ""
         github_api_files_url = ""
+        source_owner = ""
+        source_repo = ""
         if source_type == SOURCE_GITHUB_ISSUE:
             try:
                 parsed_issue = _parse_github_issue_url(source_url)
                 github_api_issue_url = parsed_issue["api_issue_url"]
+                source_owner = parsed_issue["owner"]
+                source_repo = parsed_issue["repo"]
             except Exception:
                 raise gl.vm.UserError("INVALID_GITHUB_ISSUE_URL")
         elif source_type == SOURCE_GITHUB_PR:
             try:
                 parsed_source_pr = _parse_github_pr_url(source_url)
                 github_api_issue_url = ""
+                source_owner = parsed_source_pr["owner"]
+                source_repo = parsed_source_pr["repo"]
             except Exception:
                 raise gl.vm.UserError("INVALID_SOURCE_GITHUB_PR_URL")
 
         if evidence_type == EVIDENCE_GITHUB_PR:
             try:
                 parsed = _parse_github_pr_url(proof_url)
+                if source_type == SOURCE_GITHUB_ISSUE and (parsed["owner"] != source_owner or parsed["repo"] != source_repo):
+                    raise gl.vm.UserError("GITHUB_REPO_MISMATCH")
                 github_api_pr_url = parsed["api_pr_url"]
                 github_api_files_url = parsed["api_files_url"]
+            except gl.vm.UserError:
+                raise
             except Exception:
                 raise gl.vm.UserError("INVALID_GITHUB_PR_URL")
 
