@@ -417,11 +417,42 @@ class Task:
     missing_requirements: str
     revision_count: u32
     max_revisions: u32
+    is_milestone_task: bool
+    milestone_count: u32
+    milestones_finalized: u32
+    milestone_finalized_amount: u256
     finalized: bool
     worker_payout: u256
     creator_refund: u256
     claimed_at: u64
     claim_expires_at: u64
+
+
+@allow_storage
+@dataclass
+class Milestone:
+    milestone_id: u256
+    task_id: u256
+    index: u32
+    title: str
+    acceptance_criteria: str
+    payout_percent_of_task: u32
+    status: str
+    proof_url: str
+    proof_text: str
+    evaluated: bool
+    decision: str
+    score: u32
+    payout_percent: u32
+    confidence: str
+    reason: str
+    required_revision: str
+    reason_code: str
+    missing_requirements: str
+    revision_count: u32
+    finalized: bool
+    worker_payout: u256
+    creator_refund: u256
 
 
 @allow_storage
@@ -449,6 +480,7 @@ class ProofWorksEscrow(gl.Contract):
 
     next_task_id: u256
     tasks: TreeMap[u256, Task]
+    milestones: TreeMap[u256, Milestone]
     reputations: TreeMap[Address, Reputation]
     total_escrowed: u256
     total_finalized: u256
@@ -485,6 +517,16 @@ class ProofWorksEscrow(gl.Contract):
         task = self.tasks.get(task_id, None)
         self._require(task is not None, "TASK_NOT_FOUND")
         return task
+
+
+    def _milestone_id(self, task_id: u256, index: int) -> u256:
+        return u256((int(task_id) * 10) + index)
+
+    def _get_existing_milestone(self, task_id: u256, index: int) -> Milestone:
+        self._require(index >= 1 and index <= 3, "INVALID_MILESTONE_INDEX")
+        milestone = self.milestones.get(self._milestone_id(task_id, index), None)
+        self._require(milestone is not None, "MILESTONE_NOT_FOUND")
+        return milestone
 
     def _now(self) -> int:
         return int(datetime.now(timezone.utc).timestamp())
@@ -597,6 +639,10 @@ class ProofWorksEscrow(gl.Contract):
             missing_requirements="[]",
             revision_count=u32(0),
             max_revisions=u32(max_revisions),
+            is_milestone_task=False,
+            milestone_count=u32(0),
+            milestones_finalized=u32(0),
+            milestone_finalized_amount=u256(0),
             finalized=False,
             worker_payout=u256(0),
             creator_refund=u256(0),
@@ -657,6 +703,139 @@ class ProofWorksEscrow(gl.Contract):
             assigned_worker,
             max_revisions,
         )
+
+    @gl.public.write.payable
+    def create_milestone_case(
+        self,
+        title: str,
+        description: str,
+        acceptance_criteria: str,
+        source_type: str,
+        source_url: str,
+        evidence_type: str,
+        deadline: int,
+        assigned_worker: str,
+        max_revisions: int,
+        milestone1_title: str,
+        milestone1_criteria: str,
+        milestone1_percent: int,
+        milestone2_title: str,
+        milestone2_criteria: str,
+        milestone2_percent: int,
+        milestone3_title: str,
+        milestone3_criteria: str,
+        milestone3_percent: int,
+    ) -> u256:
+        task_id = self._create_task_internal(title, description, acceptance_criteria, source_type, source_url, evidence_type, deadline, assigned_worker, max_revisions)
+        task = self._get_existing_task(task_id)
+        titles = [milestone1_title.strip(), milestone2_title.strip(), milestone3_title.strip()]
+        criteria = [milestone1_criteria.strip(), milestone2_criteria.strip(), milestone3_criteria.strip()]
+        percents = [milestone1_percent, milestone2_percent, milestone3_percent]
+        count = 0
+        total = 0
+        for i in range(3):
+            if len(titles[i]) > 0:
+                self._require(percents[i] > 0 and percents[i] <= 100, "INVALID_MILESTONE_PERCENT")
+                self._require(len(criteria[i]) > 0, "MILESTONE_CRITERIA_REQUIRED")
+                count += 1
+                total += percents[i]
+        self._require(count > 0, "MILESTONE_REQUIRED")
+        self._require(total == 100, "MILESTONE_PERCENT_SUM")
+        task.is_milestone_task = True
+        task.milestone_count = u32(count)
+        for i in range(count):
+            idx = i + 1
+            mid = self._milestone_id(task_id, idx)
+            self.milestones[mid] = Milestone(mid, task_id, u32(idx), titles[i], criteria[i], u32(percents[i]), STATUS_OPEN, "", "", False, "", u32(0), u32(0), "", "", "", "", "[]", u32(0), False, u256(0), u256(0))
+        return task_id
+
+    @gl.public.write
+    def submit_milestone_proof(self, task_id: int, milestone_index: int, proof_url: str, proof_text: str) -> None:
+        tid = u256(task_id)
+        task = self._get_existing_task(tid)
+        self._require(task.is_milestone_task, "TASK_NOT_MILESTONE")
+        milestone = self._get_existing_milestone(tid, milestone_index)
+        self._require(not milestone.finalized, "MILESTONE_ALREADY_FINALIZED")
+        self._require(milestone.status == STATUS_OPEN or milestone.status == STATUS_CLAIMED or milestone.status == STATUS_NEEDS_REVISION, "MILESTONE_NOT_ACCEPTING_PROOF")
+        if task.assigned_worker == ZERO_ADDRESS:
+            self._require(task.creator != gl.message.sender_address, "CREATOR_CANNOT_SUBMIT_PROOF")
+            task.assigned_worker = gl.message.sender_address
+            task.claimed_at = u64(self._now())
+        else:
+            self._require(task.assigned_worker == gl.message.sender_address, "ONLY_ASSIGNED_WORKER")
+        clean_url = proof_url.strip()
+        clean_text = proof_text.strip()
+        self._require(len(clean_url) > 0 or len(clean_text) > 0, "PROOF_REQUIRED")
+        if task.evidence_type == EVIDENCE_GITHUB_PR or task.evidence_type == EVIDENCE_URL_DOCUMENT:
+            self._require(len(clean_url) > 0, "PROOF_URL_REQUIRED")
+        milestone.proof_url = clean_url
+        milestone.proof_text = clean_text
+        milestone.status = STATUS_SUBMITTED
+
+    @gl.public.write
+    def evaluate_milestone(self, task_id: int, milestone_index: int) -> None:
+        tid = u256(task_id)
+        task = self._get_existing_task(tid)
+        self._require(task.is_milestone_task, "TASK_NOT_MILESTONE")
+        milestone = self._get_existing_milestone(tid, milestone_index)
+        self._require(milestone.status == STATUS_SUBMITTED, "MILESTONE_NOT_SUBMITTED")
+        self._require(not milestone.evaluated, "MILESTONE_ALREADY_EVALUATED")
+        prompt = _build_adjudication_prompt(task.title + " / " + milestone.title, task.description, task.acceptance_criteria + "\nMilestone criteria: " + milestone.acceptance_criteria, task.source_type, task.source_url, task.evidence_type, milestone.proof_url, milestone.proof_text, "", "")
+        def leader_fn() -> dict:
+            result = gl.nondet.exec_prompt(prompt, response_format="json")
+            if not isinstance(result, dict):
+                raise gl.vm.UserError("LLM_RETURNED_NON_DICT")
+            return result
+        def validator_fn(leaders_res) -> bool:
+            if not isinstance(leaders_res, gl.vm.Return):
+                return False
+            return _is_valid_raw_evaluation(leaders_res.calldata)
+        result = self._normalize_evaluation_result(gl.vm.run_nondet_unsafe(leader_fn, validator_fn))
+        decision = result["decision"]
+        milestone.evaluated = True
+        milestone.decision = decision
+        milestone.score = u32(result["score"])
+        milestone.payout_percent = u32(result["payout_percent"])
+        milestone.confidence = result["confidence"]
+        milestone.reason = result["reason"]
+        milestone.required_revision = result["required_revision"]
+        milestone.reason_code = result["reason_code"]
+        milestone.missing_requirements = result["missing_requirements"]
+        milestone.status = self._status_for_decision(decision)
+
+    @gl.public.write
+    def finalize_milestone(self, task_id: int, milestone_index: int) -> None:
+        tid = u256(task_id)
+        task = self._get_existing_task(tid)
+        self._require(task.is_milestone_task, "TASK_NOT_MILESTONE")
+        milestone = self._get_existing_milestone(tid, milestone_index)
+        self._require(milestone.evaluated, "MILESTONE_NOT_EVALUATED")
+        self._require(not milestone.finalized, "MILESTONE_ALREADY_FINALIZED")
+        self._require(milestone.decision != DECISION_NEEDS_REVISION, "REVISION_REQUIRED")
+        amount = (int(task.reward_amount) * int(milestone.payout_percent_of_task)) // 100
+        worker_payout_int = (amount * int(milestone.payout_percent)) // 100
+        creator_refund_int = amount - worker_payout_int
+        worker_payout = u256(worker_payout_int)
+        creator_refund = u256(creator_refund_int)
+        self._send_value_to_eoa(task.assigned_worker, worker_payout)
+        self._send_value_to_eoa(task.creator, creator_refund)
+        milestone.worker_payout = worker_payout
+        milestone.creator_refund = creator_refund
+        milestone.finalized = True
+        task.milestones_finalized = u32(int(task.milestones_finalized) + 1)
+        task.milestone_finalized_amount = u256(int(task.milestone_finalized_amount) + amount)
+        self.total_finalized = u256(int(self.total_finalized) + amount)
+        if milestone.decision == DECISION_APPROVE:
+            milestone.status = STATUS_PAID
+        elif milestone.decision == DECISION_REJECT:
+            milestone.status = STATUS_REFUNDED
+        elif milestone.decision == DECISION_PARTIAL:
+            milestone.status = STATUS_PARTIALLY_PAID
+        else:
+            raise gl.vm.UserError("UNFINALIZABLE_DECISION")
+        if int(task.milestones_finalized) >= int(task.milestone_count):
+            task.finalized = True
+            task.status = STATUS_PAID
 
     @gl.public.write
     def claim_task(self, task_id: int) -> None:
@@ -984,6 +1163,34 @@ class ProofWorksEscrow(gl.Contract):
         }
 
     @gl.public.view
+    def get_milestone(self, task_id: int, milestone_index: int) -> dict:
+        milestone = self._get_existing_milestone(u256(task_id), milestone_index)
+        return {
+            "milestone_id": milestone.milestone_id,
+            "task_id": milestone.task_id,
+            "index": milestone.index,
+            "title": milestone.title,
+            "acceptance_criteria": milestone.acceptance_criteria,
+            "payout_percent_of_task": milestone.payout_percent_of_task,
+            "status": milestone.status,
+            "proof_url": milestone.proof_url,
+            "proof_text": milestone.proof_text,
+            "evaluated": milestone.evaluated,
+            "decision": milestone.decision,
+            "score": milestone.score,
+            "payout_percent": milestone.payout_percent,
+            "confidence": milestone.confidence,
+            "reason": milestone.reason,
+            "required_revision": milestone.required_revision,
+            "reason_code": milestone.reason_code,
+            "missing_requirements": milestone.missing_requirements,
+            "revision_count": milestone.revision_count,
+            "finalized": milestone.finalized,
+            "worker_payout": milestone.worker_payout,
+            "creator_refund": milestone.creator_refund,
+        }
+
+    @gl.public.view
     def get_reputation(self, user: str) -> dict:
         who = Address(user)
         rep = self.reputations.get(who, None)
@@ -1068,6 +1275,10 @@ class ProofWorksEscrow(gl.Contract):
             "missing_requirements": task.missing_requirements,
             "revision_count": task.revision_count,
             "max_revisions": task.max_revisions,
+            "is_milestone_task": task.is_milestone_task,
+            "milestone_count": task.milestone_count,
+            "milestones_finalized": task.milestones_finalized,
+            "milestone_finalized_amount": task.milestone_finalized_amount,
             "finalized": task.finalized,
             "worker_payout": task.worker_payout,
             "creator_refund": task.creator_refund,

@@ -1,11 +1,18 @@
 import http from 'node:http';
 import { URL } from 'node:url';
+import { createAccount, createClient } from 'genlayer-js';
+import { studionet } from 'genlayer-js/chains';
+import { TransactionStatus } from 'genlayer-js/types';
 
 const PORT = Number(process.env.PORT || process.env.GITHUB_PROXY_PORT || 8787);
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS || '0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A';
+const CREATOR_PRIVATE_KEY = process.env.WEBHOOK_CREATOR_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
+const WORKER_PRIVATE_KEY = process.env.WEBHOOK_WORKER_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
+const WEBHOOK_REWARD_WEI = BigInt(process.env.WEBHOOK_REWARD_WEI || '1');
 
 function send(res, status, data) {
-  const body = JSON.stringify(data);
+  const body = JSON.stringify(data, (_key, value) => typeof value === 'bigint' ? value.toString() : value);
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
@@ -94,6 +101,83 @@ async function importGitHubUrl(input) {
   };
 }
 
+
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const text = Buffer.concat(chunks).toString('utf8');
+  return text ? JSON.parse(text) : {};
+}
+
+function issueHasBountyLabel(issue) {
+  return Array.isArray(issue?.labels) && issue.labels.some((l) => String(l.name ?? l).toLowerCase().includes('bounty'));
+}
+
+function issueUrl(issue) {
+  return issue?.html_url || '';
+}
+
+function findClosingIssueNumber(text) {
+  const match = String(text || '').match(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+async function createCaseFromIssue(issue) {
+  if (!CREATOR_PRIVATE_KEY) throw new Error('WEBHOOK_CREATOR_PRIVATE_KEY/PRIVATE_KEY not configured');
+  const account = createAccount(CREATOR_PRIVATE_KEY);
+  const client = createClient({ chain: studionet, account });
+  const title = `Webhook bounty: ${issue.title || `Issue #${issue.number}`}`;
+  const description = `${issue.body || 'No issue body provided.'}\n\nCreated automatically by ProofWorks GitHub webhook.`.slice(0, 6500);
+  const criteria = `A submitted pull request must materially solve GitHub issue #${issue.number}, be from the same repository, and satisfy the issue requirements.`;
+  const hash = await client.writeContract({
+    address: CONTRACT_ADDRESS,
+    functionName: 'create_case',
+    args: [title, description, criteria, 'GITHUB_ISSUE', issueUrl(issue), 'GITHUB_PR', 0, '', 2],
+    value: WEBHOOK_REWARD_WEI,
+  });
+  const receipt = await client.waitForTransactionReceipt({ hash, status: TransactionStatus.ACCEPTED, retries: 100, interval: 3000 });
+  return { hash, receipt };
+}
+
+async function findTaskForIssue(sourceUrl) {
+  const client = createClient({ chain: studionet });
+  const count = Number(await client.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_task_count', args: [] }));
+  for (let id = 1; id <= count; id++) {
+    try {
+      const task = await client.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_task', args: [id] });
+      if (String(task.source_url).toLowerCase() === String(sourceUrl).toLowerCase() && !task.finalized) return task;
+    } catch {}
+  }
+  return null;
+}
+
+async function submitAndEvaluateFromPullRequest(pr) {
+  if (!WORKER_PRIVATE_KEY) throw new Error('WEBHOOK_WORKER_PRIVATE_KEY/PRIVATE_KEY not configured');
+  const issueNo = findClosingIssueNumber(pr.body);
+  if (!issueNo) throw new Error('Pull request body does not reference a closing issue keyword like Closes #123');
+  const repoUrl = pr.base?.repo?.html_url || pr.head?.repo?.html_url || '';
+  const sourceUrl = `${repoUrl}/issues/${issueNo}`;
+  const task = await findTaskForIssue(sourceUrl);
+  if (!task) throw new Error(`No open ProofWorks task found for ${sourceUrl}`);
+  const account = createAccount(WORKER_PRIVATE_KEY);
+  const client = createClient({ chain: studionet, account });
+  const submitHash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName: 'submit_proof', args: [Number(task.task_id), pr.html_url, `Webhook submitted PR: ${pr.title}`], value: 0n });
+  await client.waitForTransactionReceipt({ hash: submitHash, status: TransactionStatus.ACCEPTED, retries: 100, interval: 3000 });
+  const evalHash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName: 'evaluate_task', args: [Number(task.task_id)], value: 0n });
+  const evalReceipt = await client.waitForTransactionReceipt({ hash: evalHash, status: TransactionStatus.ACCEPTED, retries: 120, interval: 3000 });
+  return { task_id: Number(task.task_id), submitHash, evalHash, evalReceipt };
+}
+
+async function handleWebhook(payload) {
+  if (payload.issue && ['labeled', 'opened', 'edited'].includes(payload.action) && issueHasBountyLabel(payload.issue)) {
+    return { kind: 'issue_bounty_created', ...(await createCaseFromIssue(payload.issue)) };
+  }
+  if (payload.pull_request && ['opened', 'synchronize', 'ready_for_review'].includes(payload.action)) {
+    return { kind: 'pr_submitted_and_evaluated', ...(await submitAndEvaluateFromPullRequest(payload.pull_request)) };
+  }
+  return { kind: 'ignored', action: payload.action };
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -106,7 +190,17 @@ const server = http.createServer(async (req, res) => {
   }
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (url.pathname === '/health') {
-    send(res, 200, { ok: true, token: Boolean(TOKEN) });
+    send(res, 200, { ok: true, token: Boolean(TOKEN), contract: CONTRACT_ADDRESS });
+    return;
+  }
+  if (url.pathname === '/api/webhook/github' && req.method === 'POST') {
+    try {
+      const payload = await readJsonBody(req);
+      const result = await handleWebhook(payload);
+      send(res, 200, result);
+    } catch (error) {
+      send(res, 500, { error: error instanceof Error ? error.message : String(error) });
+    }
     return;
   }
   if (url.pathname !== '/api/github') {

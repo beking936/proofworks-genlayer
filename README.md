@@ -35,7 +35,7 @@ Studionet should be tested first with faucet GEN, then Bradbury.
 
 ## Current Studionet deployment
 
-- Contract: `0xfCaB5Af8F640ee65dd79fA4BA5819Ab95de8582a`
+- Contract: `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A`
 - Deploy tx: `0x7be849bd8534717164abcc421b60ea3cdad25f6596fb43ec541b563c85401e9c`
 - Smoke test: see `docs/deployments/studionet-smoke-test.md`
 
@@ -82,5 +82,5 @@ Codespace URL is useful for live development but can shut down after idle. See `
 Current Studionet contract with reputation, manifests, and claim expiry:
 
 ```txt
-0xfCaB5Af8F640ee65dd79fA4BA5819Ab95de8582a
+0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A
 ```
