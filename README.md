@@ -66,3 +66,13 @@ The current GitHub Pages deployment is available at:
 ```txt
 https://tommycet.github.io/proofworks-genlayer/
 ```
+
+## Best testing URL
+
+Use the permanent GitHub Pages deployment for user testing:
+
+```txt
+https://tommycet.github.io/proofworks-genlayer/
+```
+
+Codespace URL is useful for live development but can shut down after idle. See `docs/best-environment.md`.
