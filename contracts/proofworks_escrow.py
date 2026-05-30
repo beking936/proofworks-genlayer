@@ -66,6 +66,21 @@ def _coerce_int(value) -> int:
 
 def _strip_url_noise(url: str) -> str:
     clean = url.strip()
+    # Users often paste Markdown links, angle-bracketed URLs, or text copied
+    # from rendered UIs. Be permissive and extract the GitHub URL portion.
+    if "](" in clean and ")" in clean:
+        start = clean.find("](") + 2
+        stop = clean.find(")", start)
+        if stop > start:
+            clean = clean[start:stop]
+
+    github_pos = clean.find("github.com/")
+    if github_pos > 0:
+        clean = clean[github_pos:]
+
+    for ch in ("`", "'", '"', "<", ">", "[", "]", "(", ")"):
+        clean = clean.replace(ch, "")
+
     hash_pos = clean.find("#")
     if hash_pos >= 0:
         clean = clean[:hash_pos]
@@ -74,26 +89,53 @@ def _strip_url_noise(url: str) -> str:
         clean = clean[:query_pos]
     while clean.endswith("/"):
         clean = clean[:-1]
-    return clean
+    return clean.strip()
 
 
 def _parse_github_pr_url(url: str) -> dict:
-    """Parse https://github.com/{owner}/{repo}/pull/{number} into API fields."""
+    """Parse a GitHub pull request URL into API fields.
+
+    Accepted examples:
+    - https://github.com/owner/repo/pull/43
+    - http://github.com/owner/repo/pull/43/files
+    - github.com/owner/repo/pull/43?tab=files
+    - [PR](https://github.com/owner/repo/pull/43)
+    """
     clean = _strip_url_noise(url)
-    prefix = "https://github.com/"
-    if not clean.startswith(prefix):
+    prefix_https = "https://github.com/"
+    prefix_http = "http://github.com/"
+    prefix_bare = "github.com/"
+
+    if clean.startswith(prefix_https):
+        path = clean[len(prefix_https):]
+    elif clean.startswith(prefix_http):
+        path = clean[len(prefix_http):]
+    elif clean.startswith(prefix_bare):
+        path = clean[len(prefix_bare):]
+    else:
         raise ValueError("invalid github host")
 
-    parts = clean[len(prefix):].split("/")
-    if len(parts) != 4:
+    parts = [part.strip() for part in path.split("/") if len(part.strip()) > 0]
+    if len(parts) < 4:
         raise ValueError("invalid github pr path")
-    owner = parts[0].strip()
-    repo = parts[1].strip()
-    kind = parts[2].strip()
-    number_text = parts[3].strip()
+
+    owner = parts[0]
+    repo = parts[1]
+    kind = parts[2]
+    number_text = parts[3]
     if len(owner) == 0 or len(repo) == 0 or kind != "pull":
         raise ValueError("invalid github pr path")
-    number = _coerce_int(number_text)
+
+    digits = ""
+    for ch in number_text:
+        if ch >= "0" and ch <= "9":
+            digits += ch
+        else:
+            break
+    if len(digits) == 0:
+        raise ValueError("invalid github pr number")
+
+    number = _coerce_int(digits)
     if number <= 0:
         raise ValueError("invalid github pr number")
 
@@ -104,6 +146,7 @@ def _parse_github_pr_url(url: str) -> dict:
         "api_pr_url": f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}",
         "api_files_url": f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/files",
     }
+
 
 
 def _build_adjudication_prompt(

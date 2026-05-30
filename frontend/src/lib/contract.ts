@@ -4,7 +4,7 @@ import { TransactionStatus } from "genlayer-js/types";
 import type { Address } from "viem";
 import type { EscrowSummary, ProofTask } from "../types/task";
 
-export const DEFAULT_CONTRACT_ADDRESS = "0xC57dEa38AeDA667985a8A8A95002c7D3ad063E08" as Address;
+export const DEFAULT_CONTRACT_ADDRESS = "0x697dB374F592f11Fe85Efb081E7fA53c9684eb47" as Address;
 export const CONTRACT_ADDRESS = (import.meta.env.VITE_CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS) as Address;
 
 export const readClient = createClient({ chain: studionet });

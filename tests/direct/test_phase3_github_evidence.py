@@ -94,6 +94,27 @@ def test_github_pr_url_query_and_trailing_slash_are_accepted(contract, direct_vm
 
 
 @pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/example/repo/pull/7",
+        "http://github.com/example/repo/pull/7",
+        "github.com/example/repo/pull/7",
+        "https://github.com/example/repo/pull/7/files",
+        "https://github.com/example/repo/pull/7/commits",
+        "[PR](https://github.com/example/repo/pull/7)",
+        "See https://github.com/example/repo/pull/7 for details",
+        "<https://github.com/example/repo/pull/7>",
+    ],
+)
+def test_github_pr_url_tolerant_formats_are_accepted(contract, direct_vm, direct_bob, url):
+    task_id = create_github_submitted_task(contract, direct_vm, direct_bob, url)
+    mock_github_pr(direct_vm)
+    mock_approval_llm(direct_vm)
+    contract.evaluate_task(task_id)
+    assert contract.get_task(task_id)["status"] == "APPROVED"
+
+
+@pytest.mark.parametrize(
     "bad_url",
     [
         "",
@@ -101,7 +122,6 @@ def test_github_pr_url_query_and_trailing_slash_are_accepted(contract, direct_vm
         "https://github.com/example/repo/issues/7",
         "https://github.com/example/repo/pull/not-a-number",
         "https://github.com/example/repo/pull/0",
-        "https://github.com/example/repo/pull/1/extra",
     ],
 )
 def test_invalid_github_pr_urls_revert(contract, direct_vm, direct_bob, bad_url):
