@@ -6,7 +6,9 @@
   "scripts": {
     "deploy:studionet": "NETWORK=studionet tsx scripts/deploy.ts",
     "deploy:bradbury": "NETWORK=bradbury tsx scripts/deploy.ts",
-    "schema": "tsx scripts/schema.ts"
+    "schema": "tsx scripts/schema.ts",
+    "proxy:github": "node server/github-proxy.mjs",
+    "dev:codespace": "bash -lc 'node server/github-proxy.mjs & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173 --strictPort'"
   },
   "dependencies": {
     "genlayer-js": "^1.1.8",

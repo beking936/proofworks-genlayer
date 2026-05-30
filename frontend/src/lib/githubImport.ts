@@ -57,7 +57,24 @@ async function fetchReaderFallback(htmlUrl: string): Promise<{ title: string; bo
   }
 }
 
+async function fetchProxyImport(input: string): Promise<GitHubImportResult | null> {
+  try {
+    const response = await fetch(`/api/github?url=${encodeURIComponent(input)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data || !data.kind || !data.htmlUrl) return null;
+    return data as GitHubImportResult;
+  } catch {
+    return null;
+  }
+}
+
 export async function importGitHubUrl(input: string): Promise<GitHubImportResult> {
+  const proxied = await fetchProxyImport(input);
+  if (proxied) return proxied;
+
   const parsed = parseGitHubUrl(input);
   const base = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}`;
   const issueUrl = `${base}/issues/${parsed.number}`;
