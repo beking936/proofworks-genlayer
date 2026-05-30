@@ -7,7 +7,7 @@ This guide tests everything implemented so far: contract logic, deployed Studion
 ### Studionet contract
 
 ```txt
-0xB9B31ABA945D9056e71d53CB4E2c71090D3FaA57
+0xfCaB5Af8F640ee65dd79fA4BA5819Ab95de8582a
 ```
 
 Deployment/smoke-test details:

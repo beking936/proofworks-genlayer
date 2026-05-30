@@ -35,7 +35,7 @@ Studionet should be tested first with faucet GEN, then Bradbury.
 
 ## Current Studionet deployment
 
-- Contract: `0xB9B31ABA945D9056e71d53CB4E2c71090D3FaA57`
+- Contract: `0xfCaB5Af8F640ee65dd79fA4BA5819Ab95de8582a`
 - Deploy tx: `0x7be849bd8534717164abcc421b60ea3cdad25f6596fb43ec541b563c85401e9c`
 - Smoke test: see `docs/deployments/studionet-smoke-test.md`
 
@@ -76,3 +76,11 @@ https://tommycet.github.io/proofworks-genlayer/
 ```
 
 Codespace URL is useful for live development but can shut down after idle. See `docs/best-environment.md`.
+
+## Phase 7 contract
+
+Current Studionet contract with reputation, manifests, and claim expiry:
+
+```txt
+0xfCaB5Af8F640ee65dd79fA4BA5819Ab95de8582a
+```

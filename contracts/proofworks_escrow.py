@@ -7,6 +7,7 @@ from genlayer.py.types import Address, u256, u64, u32
 from genlayer.py.storage import TreeMap, allow_storage
 from dataclasses import dataclass
 import json
+from datetime import datetime, timezone
 
 
 STATUS_OPEN = "OPEN"
@@ -419,6 +420,23 @@ class Task:
     finalized: bool
     worker_payout: u256
     creator_refund: u256
+    claimed_at: u64
+    claim_expires_at: u64
+
+
+@allow_storage
+@dataclass
+class Reputation:
+    tasks_created: u32
+    tasks_completed: u32
+    tasks_approved: u32
+    tasks_rejected: u32
+    tasks_partial: u32
+    revisions_requested: u32
+    tasks_canceled: u32
+    total_earned: u256
+    total_paid: u256
+    total_refunded: u256
 
 
 class ProofWorksEscrow(gl.Contract):
@@ -431,6 +449,7 @@ class ProofWorksEscrow(gl.Contract):
 
     next_task_id: u256
     tasks: TreeMap[u256, Task]
+    reputations: TreeMap[Address, Reputation]
     total_escrowed: u256
     total_finalized: u256
 
@@ -466,6 +485,30 @@ class ProofWorksEscrow(gl.Contract):
         task = self.tasks.get(task_id, None)
         self._require(task is not None, "TASK_NOT_FOUND")
         return task
+
+    def _now(self) -> int:
+        return int(datetime.now(timezone.utc).timestamp())
+
+    def _new_reputation(self) -> Reputation:
+        return Reputation(
+            tasks_created=u32(0),
+            tasks_completed=u32(0),
+            tasks_approved=u32(0),
+            tasks_rejected=u32(0),
+            tasks_partial=u32(0),
+            revisions_requested=u32(0),
+            tasks_canceled=u32(0),
+            total_earned=u256(0),
+            total_paid=u256(0),
+            total_refunded=u256(0),
+        )
+
+    def _get_reputation(self, who: Address) -> Reputation:
+        rep = self.reputations.get(who, None)
+        if rep is None:
+            rep = self._new_reputation()
+            self.reputations[who] = rep
+        return rep
 
     def _create_task_internal(
         self,
@@ -557,7 +600,12 @@ class ProofWorksEscrow(gl.Contract):
             finalized=False,
             worker_payout=u256(0),
             creator_refund=u256(0),
+            claimed_at=u64(self._now()) if worker != ZERO_ADDRESS else u64(0),
+            claim_expires_at=u64(deadline) if worker != ZERO_ADDRESS and deadline > 0 else u64(0),
         )
+        creator_rep = self._get_reputation(gl.message.sender_address)
+        creator_rep.tasks_created = u32(int(creator_rep.tasks_created) + 1)
+        self.reputations[gl.message.sender_address] = creator_rep
         self.total_escrowed = u256(int(self.total_escrowed) + int(reward_amount))
         return task_id
 
@@ -617,6 +665,8 @@ class ProofWorksEscrow(gl.Contract):
         self._require(task.status == STATUS_OPEN, "TASK_NOT_OPEN")
         self._require(task.creator != gl.message.sender_address, "CREATOR_CANNOT_CLAIM")
         task.assigned_worker = gl.message.sender_address
+        task.claimed_at = u64(self._now())
+        task.claim_expires_at = u64(int(task.deadline)) if int(task.deadline) > 0 else u64(0)
         task.status = STATUS_CLAIMED
 
     @gl.public.write
@@ -628,6 +678,8 @@ class ProofWorksEscrow(gl.Contract):
         if task.status == STATUS_OPEN:
             self._require(task.creator != gl.message.sender_address, "CREATOR_CANNOT_SUBMIT_PROOF")
             task.assigned_worker = gl.message.sender_address
+            task.claimed_at = u64(self._now())
+            task.claim_expires_at = u64(int(task.deadline)) if int(task.deadline) > 0 else u64(0)
         else:
             self._require(task.assigned_worker == gl.message.sender_address, "ONLY_ASSIGNED_WORKER")
 
@@ -659,6 +711,10 @@ class ProofWorksEscrow(gl.Contract):
         task.finalized = True
         task.creator_refund = refund
         task.worker_payout = u256(0)
+        creator_rep = self._get_reputation(task.creator)
+        creator_rep.tasks_canceled = u32(int(creator_rep.tasks_canceled) + 1)
+        creator_rep.total_refunded = u256(int(creator_rep.total_refunded) + int(refund))
+        self.reputations[task.creator] = creator_rep
         self.total_finalized = u256(int(self.total_finalized) + int(refund))
 
 
@@ -803,6 +859,23 @@ class ProofWorksEscrow(gl.Contract):
         task.reason_code = result["reason_code"]
         task.missing_requirements = result["missing_requirements"]
         task.status = self._status_for_decision(decision)
+        if decision == DECISION_NEEDS_REVISION:
+            worker_rep = self._get_reputation(task.assigned_worker)
+            worker_rep.revisions_requested = u32(int(worker_rep.revisions_requested) + 1)
+            self.reputations[task.assigned_worker] = worker_rep
+
+
+    @gl.public.write
+    def release_expired_claim(self, task_id: int) -> None:
+        tid = u256(task_id)
+        task = self._get_existing_task(tid)
+        self._require(task.status == STATUS_CLAIMED, "TASK_NOT_CLAIMED")
+        self._require(task.claim_expires_at > u64(0), "NO_CLAIM_EXPIRY")
+        self._require(self._now() > int(task.claim_expires_at), "CLAIM_NOT_EXPIRED")
+        task.assigned_worker = ZERO_ADDRESS
+        task.claimed_at = u64(0)
+        task.claim_expires_at = u64(0)
+        task.status = STATUS_OPEN
 
 
     @gl.public.write
@@ -872,14 +945,26 @@ class ProofWorksEscrow(gl.Contract):
         task.finalized = True
         self.total_finalized = u256(int(self.total_finalized) + amount)
 
+        creator_rep = self._get_reputation(task.creator)
+        worker_rep = self._get_reputation(task.assigned_worker)
+        creator_rep.total_paid = u256(int(creator_rep.total_paid) + int(worker_payout))
+        creator_rep.total_refunded = u256(int(creator_rep.total_refunded) + int(creator_refund))
+        worker_rep.tasks_completed = u32(int(worker_rep.tasks_completed) + 1)
+        worker_rep.total_earned = u256(int(worker_rep.total_earned) + int(worker_payout))
+
         if task.decision == DECISION_APPROVE:
             task.status = STATUS_PAID
+            worker_rep.tasks_approved = u32(int(worker_rep.tasks_approved) + 1)
         elif task.decision == DECISION_REJECT:
             task.status = STATUS_REFUNDED
+            worker_rep.tasks_rejected = u32(int(worker_rep.tasks_rejected) + 1)
         elif task.decision == DECISION_PARTIAL:
             task.status = STATUS_PARTIALLY_PAID
+            worker_rep.tasks_partial = u32(int(worker_rep.tasks_partial) + 1)
         else:
             raise gl.vm.UserError("UNFINALIZABLE_DECISION")
+        self.reputations[task.creator] = creator_rep
+        self.reputations[task.assigned_worker] = worker_rep
 
     @gl.public.view
     def get_task_count(self) -> u256:
@@ -896,6 +981,61 @@ class ProofWorksEscrow(gl.Contract):
             "total_finalized": self.total_finalized,
             "active_escrow": u256(int(self.total_escrowed) - int(self.total_finalized)),
             "contract_balance": self.balance,
+        }
+
+    @gl.public.view
+    def get_reputation(self, user: str) -> dict:
+        who = Address(user)
+        rep = self.reputations.get(who, None)
+        if rep is None:
+            return {
+                "tasks_created": 0,
+                "tasks_completed": 0,
+                "tasks_approved": 0,
+                "tasks_rejected": 0,
+                "tasks_partial": 0,
+                "revisions_requested": 0,
+                "tasks_canceled": 0,
+                "total_earned": 0,
+                "total_paid": 0,
+                "total_refunded": 0,
+            }
+        return {
+            "tasks_created": rep.tasks_created,
+            "tasks_completed": rep.tasks_completed,
+            "tasks_approved": rep.tasks_approved,
+            "tasks_rejected": rep.tasks_rejected,
+            "tasks_partial": rep.tasks_partial,
+            "revisions_requested": rep.revisions_requested,
+            "tasks_canceled": rep.tasks_canceled,
+            "total_earned": rep.total_earned,
+            "total_paid": rep.total_paid,
+            "total_refunded": rep.total_refunded,
+        }
+
+    @gl.public.view
+    def get_task_manifest(self, task_id: int) -> dict:
+        task = self._get_existing_task(u256(task_id))
+        return {
+            "protocol": "proofworks-v1",
+            "task_id": task.task_id,
+            "contract": str(gl.message.contract_address),
+            "source": {
+                "type": task.source_type,
+                "url": task.source_url,
+            },
+            "proof_schema": {
+                "type": task.evidence_type,
+                "requires_url": task.evidence_type == EVIDENCE_GITHUB_PR or task.evidence_type == EVIDENCE_URL_DOCUMENT,
+            },
+            "settlement": {
+                "reward_amount": task.reward_amount,
+                "status": task.status,
+                "decision": task.decision,
+                "payout_percent": task.payout_percent,
+                "finalized": task.finalized,
+            },
+            "acceptance_criteria": task.acceptance_criteria,
         }
 
     @gl.public.view
@@ -931,4 +1071,6 @@ class ProofWorksEscrow(gl.Contract):
             "finalized": task.finalized,
             "worker_payout": task.worker_payout,
             "creator_refund": task.creator_refund,
+            "claimed_at": task.claimed_at,
+            "claim_expires_at": task.claim_expires_at,
         }
