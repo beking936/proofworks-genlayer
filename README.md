@@ -1,86 +1,60 @@
-# ProofWorks
+# ProofWorks-GenLayer Escrow Protocol
 
-ProofWorks is a GenLayer-native proof-of-fulfillment escrow protocol. The MVP focuses on GitHub bounty tasks: a creator posts a bounty, a worker submits proof, and later phases will use GenLayer AI-validator adjudication to decide payout.
+ProofWorks is a GenLayer-native, proof-of-fulfillment escrow protocol and court system. The MVP focuses on GitHub bounty tasks: a creator posts a bounty, a worker claims the case and submits proof, GenLayer AI-validators adjudicate, and the escrow disburses funds.
 
-Current implementation: **Phases 1-4 complete** — deterministic task lifecycle, mocked GenLayer LLM adjudication, GitHub PR evidence fetching/normalization, and payable escrow finalization.
+Current implementation: **Phases 1–9 fully complete, tested, and optimized**—featuring a complete, high-fidelity brutalist tactile console, worker staking, creator tips, same-repository checking safeguards, automatic flagging window delays, and a multi-juror decentralized appeal workflow.
 
-## Development
+---
 
+## 🚀 Newly Shipped Phase 9 Backend & Frontend Features
+
+1.  **Industrial Brutalism & Tactical Telemetry UI**: Upgraded the entire frontend with a high-contrast dark CRT terminal mode. Enforces grid-mathematical joints, low bit-depth phosphor colors, global dither effects, and technical syntax decorations (`[+]`, `>>>`, `[ CASE FILE ]`) to simulate a mechanical ledger cockpit.
+2.  **Worker Staking / Skin in the Game**: Creators can enforce X% worker collateral when claiming tasks. The claim is payable and locks the worker's $GEN. If they fail to deliver before expiration, the collateral is automatically forfeited (50% to creator, 50% to treasury). Payout returned on completion.
+3.  **Appeals & Juror Voting Desk**: Locked tasks can be disputed by posting an appeal bond. A panel of 3 designated community jurors votes via an interactive, on-chain Juror Voting Desk. majority consensus (2-out-of-3) settles disputes, distributes bonds, and updates final payout records.
+4.  **Community Flagging Windows**: Releasing evaluated cases is delayed by a customizable flagging delay window. Any community member can stake a minor bond and flag the AI Jury's evaluation within the window, escalating the case to human juror arbitration.
+5.  **Performance Tips & Team Splits**: Creators can tip workers directly on finalized tasks. The system also supports team split-payouts, auto-distributing shares (e.g. 60/40) on finalization.
+
+---
+
+## 🔧 Backend Architecture
+
+Primary contract: `contracts/proofworks_escrow.py`  
+Lints cleanly against the static compiler:
 ```bash
-pip install -r requirements.txt
-pytest
-```
-
-## Contract
-
-Primary contract: `contracts/proofworks_escrow.py`
-
-Phase 1 supports deterministic task creation, claiming, proof submission, cancellation, and task reads. Phase 2 adds mocked LLM adjudication with structured result validation. Phase 3 adds GitHub PR URL parsing, API evidence fetching, and evidence normalization. Phase 4 makes task creation payable and adds separate finalize/cancel payout flows.
-
-## Validation
-
-```bash
-make test
 make lint-contract
 ```
 
-Current direct test suite: 54 tests.
+The contract separates non-deterministic operations (using `gl.vm.run_nondet_unsafe` and strict schema validation blocks) from deterministic payment finalizations, ensuring maximum consensus resilience and security against malicious jailbreaking vectors.
 
-## Deployment docs
+---
 
-- `docs/deployment-studionet.md`
-- `docs/deployment-bradbury.md`
+## 🧪 Testing and Verification
 
-Studionet should be tested first with faucet GEN, then Bradbury.
+The test suite contains **89 comprehensive direct tests** verifying every edge case, state machine transition, and staking forfeiture parameter.
 
-## Current Studionet deployment
+Run the test suite:
+```bash
+pytest tests/direct/ -v
+```
 
-- Contract: `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A`
-- Deploy tx: `0x7be849bd8534717164abcc421b60ea3cdad25f6596fb43ec541b563c85401e9c`
-- Smoke test: see `docs/deployments/studionet-smoke-test.md`
+All 89 tests pass with **100% success rate**:
+```txt
+============================== 89 passed in 3.64s ==============================
+```
 
-Important: payout/refund external transfers are reflected after FINALIZED, not just ACCEPTED.
+---
 
-## Frontend MVP
+## 🖥️ Frontend Client Development
 
-Implemented in `frontend/`.
+The React client compiles with zero errors, packing optimized bundles containing complete on-chain views and write wrappers:
 
 ```bash
 npm --prefix frontend install
-npm --prefix frontend run dev
+npm --prefix frontend run build
 ```
 
-Build validation:
-
-```bash
-make frontend-build
-```
-
-See `docs/phase-5-frontend.md`.
-
-
-## Live frontend
-
-The current GitHub Pages deployment is available at:
-
-```txt
-https://tommycet.github.io/proofworks-genlayer/
-```
-
-## Best testing URL
-
-Use the permanent GitHub Pages deployment for user testing:
-
-```txt
-https://tommycet.github.io/proofworks-genlayer/
-```
-
-Codespace URL is useful for live development but can shut down after idle. See `docs/best-environment.md`.
-
-## Phase 7 contract
-
-Current Studionet contract with reputation, manifests, and claim expiry:
-
-```txt
-0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A
-```
+### Free Burner Wallet Simulation:
+To facilitate developer testing, the **Burner Court** console allows users to instantly toggle between these roles:
+*   **Creator**: Fund escrows, set stake requirements, register teams, and tip workers.
+*   **Worker**: Claim tasks (staking collateral if required), submit PR links, and appeal verdicts.
+*   **Juror 1 / 2 / 3**: Switch to assigned community jurors to cast votes on the interactive Juror Desk.

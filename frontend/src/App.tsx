@@ -62,7 +62,7 @@ export default function App() {
             <div className="burner-court">
               <div>
                 <strong>Free Studionet burner mode</strong>
-                <span>No faucet required. Use Creator to create, Worker to submit proof.</span>
+                <span>No faucet required. Use Creator to create, Worker to submit, and Jurors to vote in appeals.</span>
               </div>
               <div className="role-switcher">
                 <button className={wallet.burnerRole === "creator" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("creator")}>
@@ -70,6 +70,15 @@ export default function App() {
                 </button>
                 <button className={wallet.burnerRole === "worker" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("worker")}>
                   Worker {wallet.workerAddress ? shortAddress(wallet.workerAddress) : ""}
+                </button>
+                <button className={wallet.burnerRole === "juror1" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("juror1")}>
+                  Juror 1 (0x3634...)
+                </button>
+                <button className={wallet.burnerRole === "juror2" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("juror2")}>
+                  Juror 2 (0x3497...)
+                </button>
+                <button className={wallet.burnerRole === "juror3" && wallet.mode === "burner" ? "is-active" : ""} onClick={() => wallet.setBurnerRole("juror3")}>
+                  Juror 3 (0x5b3A...)
                 </button>
                 <button onClick={wallet.resetBurners}>new pair</button>
               </div>
@@ -117,7 +126,16 @@ export default function App() {
           </div>
         </div>
 
-        <div className="center-stack"><TaskDetail task={selectedTask} /><MilestoneRoom task={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} /></div>
+        <div className="center-stack">
+          <TaskDetail 
+            task={selectedTask} 
+            connectedAddress={wallet.address} 
+            writeClient={wallet.writeClient} 
+            onRefresh={refresh} 
+            pushActivity={pushActivity} 
+          />
+          <MilestoneRoom task={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} />
+        </div>
 
         <div className="right-rail">
           <ActionPanel selectedTask={selectedTask} writeClient={wallet.writeClient} onRefresh={refresh} pushActivity={pushActivity} draft={draft} onDraftConsumed={() => setDraft(null)} />

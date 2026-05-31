@@ -44,6 +44,26 @@ export interface ProofTask {
   finalized: boolean;
   worker_payout: number | bigint;
   creator_refund: number | bigint;
+  required_stake_percent: number | bigint;
+  worker_stake: number | bigint;
+  is_appealed: boolean;
+  appeal_bond: number | bigint;
+  appellant: string;
+  juror1: string;
+  juror2: string;
+  juror3: string;
+  vote1: string;
+  vote2: string;
+  vote3: string;
+  appeal_votes_count: number | bigint;
+  evaluated_at: number | bigint;
+  has_team: boolean;
+  team_member1: string;
+  team_split1: number | bigint;
+  team_member2: string;
+  team_split2: number | bigint;
+  team_member3: string;
+  team_split3: number | bigint;
 }
 
 export interface EscrowSummary {

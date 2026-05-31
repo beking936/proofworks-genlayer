@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-type BurnerRole = "creator" | "worker";
+type BurnerRole = "creator" | "worker" | "juror1" | "juror2" | "juror3";
 
 type BurnerState = {
   creatorKey: `0x${string}`;
@@ -52,8 +52,11 @@ export function useWallet() {
 
   const burnerAccount = useMemo(() => {
     if (!burners) return null;
-    const key = burners.role === "creator" ? burners.creatorKey : burners.workerKey;
-    return createAccount(key);
+    let key = burners.role === "creator" ? burners.creatorKey : burners.role === "worker" ? burners.workerKey : "";
+    if (burners.role === "juror1") key = "0x9ad5e99107f67bc00c2b2459a9cb269dc2a4d831d3e61f262a7f6d0ec829db50";
+    else if (burners.role === "juror2") key = "0xadcf89da46bfd377f2177157380b2245fc6d1988b4002aeffb290af38eb9e805";
+    else if (burners.role === "juror3") key = "0x95318e4e48ceadbcb753ddad3b0679f221fcc2bfe78382ba3a6d13cf06b60d88";
+    return createAccount(key as `0x${string}`);
   }, [burners]);
 
   const address = useMemo<Address | null>(() => {
