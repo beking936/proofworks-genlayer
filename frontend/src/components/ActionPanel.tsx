@@ -64,6 +64,10 @@ export function ActionPanel({
 
   const selectedId = useMemo(() => selectedTask ? asNumber(selectedTask.task_id) : 0, [selectedTask]);
 
+  const isOldContract = useMemo(() => {
+    return CONTRACT_ADDRESS.toLowerCase() === "0x5e992bbc2de02c3878d2623a7c3bec9603ab651a".toLowerCase();
+  }, []);
+
   useEffect(() => {
     if (!draft) return;
     setTitle(draft.title);
@@ -144,7 +148,19 @@ export function ActionPanel({
           <label>Max revisions<input value={maxRevisions} onChange={(e) => setMaxRevisions(e.target.value)} inputMode="numeric" /></label>
         </div>
         <div className="form-row">
-          <label>Required Stake (%)<input value={requiredStakePercent} onChange={(e) => setRequiredStakePercent(e.target.value)} inputMode="numeric" placeholder="0" /></label>
+          <label>
+            Required Stake (%)
+            {isOldContract ? (
+              <span style={{ color: "var(--vermilion)", textTransform: "none", fontSize: "9px" }}> *Not supported on Phase 7 contract</span>
+            ) : null}
+            <input 
+              disabled={isOldContract}
+              value={isOldContract ? "0" : requiredStakePercent} 
+              onChange={(e) => setRequiredStakePercent(e.target.value)} 
+              inputMode="numeric" 
+              placeholder="0" 
+            />
+          </label>
         </div>
         <label className="checkline"><input type="checkbox" checked={milestoneMode} onChange={(e) => setMilestoneMode(e.target.checked)} /> Milestone escrow mode</label>
         {milestoneMode ? <div className="milestone-form">
@@ -155,7 +171,15 @@ export function ActionPanel({
         <button disabled={isBusy || !writeClient} onClick={() => run(milestoneMode ? "create_milestone_case" : "create_case", () => writeClient.writeContract({
           address: CONTRACT_ADDRESS as Address,
           functionName: milestoneMode ? "create_milestone_case" : "create_case",
-          args: milestoneMode ? [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2"), m1Title, m1Criteria, Number(m1Percent || "0"), m2Title, m2Criteria, Number(m2Percent || "0"), m3Title, m3Criteria, Number(m3Percent || "0"), Number(requiredStakePercent || "0")] : [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2"), Number(requiredStakePercent || "0")],
+          args: milestoneMode 
+            ? (isOldContract 
+                ? [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2"), m1Title, m1Criteria, Number(m1Percent || "0"), m2Title, m2Criteria, Number(m2Percent || "0"), m3Title, m3Criteria, Number(m3Percent || "0")]
+                : [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2"), m1Title, m1Criteria, Number(m1Percent || "0"), m2Title, m2Criteria, Number(m2Percent || "0"), m3Title, m3Criteria, Number(m3Percent || "0"), Number(requiredStakePercent || "0")]
+              )
+            : (isOldContract
+                ? [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2")]
+                : [title, description, criteria, sourceType, sourceUrl, evidenceType, 0, "", Number(maxRevisions || "2"), Number(requiredStakePercent || "0")]
+              ),
           value: BigInt(reward || "0"),
         }))}>{milestoneMode ? "Seal milestone case" : "Seal new case"}</button>
       </div>
