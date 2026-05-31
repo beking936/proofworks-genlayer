@@ -1,18 +1,16 @@
 :root {
-  --ink: #e1e6e6;             /* Warm White Phosphor */
-  --coal: #0a0b0b;            /* Deactivated CRT Phosphor Black */
-  --crt-bg: #0d0e0e;          /* Active CRT Cathode Black */
-  --acid: #26f432;            /* Active Phosphor Signal Green */
-  --acid-dim: rgba(38, 244, 50, 0.15);
-  --vermilion: #ff3b1f;       /* Warning/Hazard Aviation Red */
-  --vermilion-dim: rgba(255, 59, 31, 0.15);
-  --blueprint: #101c1c;       /* Structural Blue/Charcoal */
-  --line: rgba(225, 230, 230, 0.18);
-  --line-bright: rgba(225, 230, 230, 0.45);
+  --ink: #EAEAEA;
+  --coal: #0A0A0A;
+  --crt-bg: #121212;
+  --accent: #FF2A2A;
+  --accent-dim: rgba(255, 42, 42, 0.15);
+  --acid: #4AF626;
+  --acid-dim: rgba(74, 246, 38, 0.15);
+  --line: rgba(234, 234, 234, 0.2);
+  --line-bright: rgba(234, 234, 234, 0.5);
   --shadow: 0 0 40px rgba(0, 0, 0, 0.85);
-  --mono: "JetBrains Mono", "Space Mono", "IBM Plex Mono", "Courier New", monospace;
-  --serif: var(--mono);       /* Rigorous monospace override */
-  --display: var(--mono);     /* Rigorous monospace override */
+  --mono: "JetBrains Mono", "Space Mono", monospace;
+  --display: "Archivo Black", "Inter", sans-serif;
 }
 
 * { 
@@ -33,7 +31,27 @@ body {
   background: var(--coal);
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  position: relative;
 }
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+  z-index: 9998;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  z-index: 9999;
+}
+
 
 button, input, textarea, select { 
   font-family: var(--mono); 
@@ -50,7 +68,7 @@ button {
 }
 
 a { 
-  color: var(--acid) !important; 
+  color: var(--accent) !important; 
   text-decoration: underline;
 }
 
@@ -103,7 +121,7 @@ a {
   background: var(--coal);
   padding: 0 8px;
   font-size: 10px;
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .brand-mark {
@@ -111,15 +129,15 @@ a {
   border: 1px solid var(--ink);
   display: grid; place-items: center;
   position: relative;
-  background: var(--acid-dim);
+  background: var(--accent-dim);
   font-family: var(--mono);
   font-weight: 900;
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .brand-mark i {
   position: absolute; inset: 4px;
-  border: 1px dashed var(--acid);
+  border: 1px dashed var(--accent);
 }
 
 .network-ribbon {
@@ -146,9 +164,9 @@ a {
 
 .wallet-button:hover, .hero-actions button:hover, .hero-actions a:hover, .section-heading button:hover, .form-slab button:hover, .settlement-row button:hover, .milestone-actions button:hover, .apply-draft:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0 var(--acid);
-  border-color: var(--acid);
-  color: var(--acid);
+  box-shadow: 5px 5px 0 var(--accent);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .wallet-button.secondary {
@@ -189,16 +207,17 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: .12em;
   font-size: 11px;
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .hero h1 {
-  font-size: clamp(38px, 6vw, 84px);
-  line-height: 0.95;
-  font-weight: bold;
-  letter-spacing: -0.04em;
+  font-family: var(--display);
+  font-size: clamp(4rem, 10vw, 15rem);
+  line-height: 0.9;
+  letter-spacing: -0.05em;
   text-transform: uppercase;
   margin: 12px 0 20px;
+  color: var(--ink);
 }
 
 .hero p {
@@ -250,7 +269,7 @@ button:disabled {
 
 .seal-card span { 
   font-size: 84px; 
-  color: var(--acid); 
+  color: var(--accent); 
   line-height: 1; 
 }
 
@@ -304,7 +323,7 @@ button:disabled {
   font-size: 28px; 
   letter-spacing: -0.02em; 
   margin-top: 8px; 
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .stat-card small { 
@@ -360,8 +379,8 @@ button:disabled {
 }
 
 .task-card.is-selected { 
-  background: var(--acid-dim); 
-  border-color: var(--acid); 
+  background: var(--accent-dim); 
+  border-color: var(--accent); 
   box-shadow: 0 0 15px rgba(38, 244, 50, 0.15);
 }
 
@@ -449,9 +468,9 @@ button:disabled {
   position: relative;
 }
 
-.criteria-block::before { content: ">>> SYSTEM_SPECIFICATION_PROPOSAL"; font-size: 8px; color: var(--acid); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
-.proof-block::before { content: ">>> SUBMITTED_EVIDENCE_RECORD"; font-size: 8px; color: var(--acid); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
-.verdict-block::before { content: ">>> DECISION_VERDICT_REPORT"; font-size: 8px; color: var(--acid); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
+.criteria-block::before { content: ">>> SYSTEM_SPECIFICATION_PROPOSAL"; font-size: 8px; color: var(--accent); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
+.proof-block::before { content: ">>> SUBMITTED_EVIDENCE_RECORD"; font-size: 8px; color: var(--accent); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
+.verdict-block::before { content: ">>> DECISION_VERDICT_REPORT"; font-size: 8px; color: var(--accent); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
 .appeal-block::before { content: ">>> JUROR_ARBITRATION_CONSOLE"; font-size: 8px; color: var(--vermilion); position: absolute; top: -6px; left: 10px; background: var(--crt-bg); padding: 0 4px; }
 
 .criteria-block span, .proof-block span, .verdict-score span, .detail-grid span, .appeal-block span { 
@@ -486,7 +505,7 @@ button:disabled {
   display: block; 
   margin-top: 4px; 
   font-size: 12px;
-  color: var(--acid);
+  color: var(--accent);
   overflow-wrap: anywhere; 
 }
 
@@ -504,7 +523,7 @@ button:disabled {
 .verdict-score strong { 
   font-size: 26px; 
   font-weight: bold;
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .verdict-meter { 
@@ -518,8 +537,8 @@ button:disabled {
   display: block; 
   width: var(--score, 0%); 
   height: 100%; 
-  background: var(--acid); 
-  box-shadow: 0 0 10px var(--acid);
+  background: var(--accent); 
+  box-shadow: 0 0 10px var(--accent);
 }
 
 .verdict-block em { 
@@ -617,13 +636,13 @@ button:disabled {
 }
 
 .settlement-row button:nth-child(2) { 
-  border-color: var(--acid);
-  color: var(--acid);
-  background: var(--acid-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
 }
 
 .settlement-row button:nth-child(2):hover {
-  background: var(--acid);
+  background: var(--accent);
   color: #000;
 }
 
@@ -658,8 +677,8 @@ button:disabled {
 .console-topline i { 
   width: 8px; 
   height: 8px; 
-  background: var(--acid); 
-  box-shadow: 0 0 10px var(--acid); 
+  background: var(--accent); 
+  box-shadow: 0 0 10px var(--accent); 
 }
 
 .console-feed { 
@@ -685,11 +704,11 @@ button:disabled {
 }
 
 .console-item strong { 
-  color: var(--acid); 
+  color: var(--accent); 
 }
 
 .console-item a { 
-  color: var(--acid) !important; 
+  color: var(--accent) !important; 
 }
 
 .console-item--bad strong { 
@@ -704,7 +723,7 @@ button:disabled {
 .burner-court {
   margin-top: 20px;
   border: 1px solid var(--ink);
-  background: var(--acid-dim);
+  background: var(--accent-dim);
   padding: 14px;
   display: grid;
   grid-template-columns: 1fr auto;
@@ -718,7 +737,7 @@ button:disabled {
   text-transform: uppercase; 
   letter-spacing: .1em; 
   font-size: 12px; 
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .burner-court span { 
@@ -746,7 +765,7 @@ button:disabled {
 }
 
 .role-switcher button.is-active { 
-  background: var(--acid); 
+  background: var(--accent); 
   color: #000;
   box-shadow: 3px 3px 0 var(--line); 
 }
@@ -845,7 +864,7 @@ button:disabled {
   width: 100px; height: 100px;
   border: 1px solid var(--ink);
   display: grid; place-items: center;
-  background: conic-gradient(var(--acid) var(--score), var(--line) 0);
+  background: conic-gradient(var(--accent) var(--score), var(--line) 0);
   box-shadow: inset 0 0 0 10px var(--crt-bg), 3px 3px 0 var(--line);
 }
 
@@ -863,7 +882,7 @@ button:disabled {
   display: block; 
   text-transform: uppercase; 
   letter-spacing: .08em; 
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .draft-lines span { 
@@ -906,9 +925,9 @@ button:disabled {
 
 .reason-code { 
   display: inline-block; 
-  border: 1px solid var(--acid); 
-  background: var(--acid-dim); 
-  color: var(--acid);
+  border: 1px solid var(--accent); 
+  background: var(--accent-dim); 
+  color: var(--accent);
   padding: 4px 8px; 
   font-size: 11px; 
   text-transform: uppercase; 
@@ -990,7 +1009,7 @@ button:disabled {
   background: var(--coal);
   padding: 0 6px;
   font-size: 10px;
-  color: var(--acid);
+  color: var(--accent);
 }
 
 .milestone-room__head { 
@@ -1065,9 +1084,9 @@ button:disabled {
 
 .milestone-verdict span { 
   margin-left: 8px; 
-  background: var(--acid-dim); 
-  color: var(--acid);
-  border: 1px solid var(--acid); 
+  background: var(--accent-dim); 
+  color: var(--accent);
+  border: 1px solid var(--accent); 
   padding: 2px 6px; 
   font-size: 10px;
 }

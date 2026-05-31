@@ -665,7 +665,10 @@ class ProofWorksEscrow(gl.Contract):
             self._require(len(clean_source_url) > 0, "SOURCE_URL_REQUIRED")
 
         worker = ZERO_ADDRESS
-        if len(assigned_worker.strip()) > 0:
+        if isinstance(assigned_worker, Address):
+            if assigned_worker != ZERO_ADDRESS:
+                worker = assigned_worker
+        elif isinstance(assigned_worker, str) and len(assigned_worker.strip()) > 0:
             worker = Address(assigned_worker)
 
         status = STATUS_OPEN
