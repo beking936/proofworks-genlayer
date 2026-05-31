@@ -31,11 +31,13 @@ That is the whole product in one paragraph. The rest of this README is how it wo
 
 ## Live demo
 
-- Frontend: https://tommycet.github.io/proofworks-genlayer/
+- Frontend (Vercel, primary): https://proofworks-genlayer.vercel.app
+- Frontend (GitHub Pages, mirror): https://tommycet.github.io/proofworks-genlayer/
+- GitHub proxy API: `https://proofworks-genlayer.vercel.app/api/github?url=<github issue or PR url>`
 - Studionet contract (current): `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A`
 - Walkthrough video: _to be added_
 
-The Pages site is a static build connected directly to the Studionet contract. The burner wallet panel lets you switch between Creator, Worker, and Juror roles without a real funded account, so the whole flow is testable in a browser tab. If your browser does not have an injected wallet, the read-only view still works.
+The Vercel deployment runs both the frontend and the GitHub proxy as a serverless function on the same origin, so there is no CORS dance and no cold-start sleep. The Pages site is kept as a backup mirror but does not have the proxy attached. The burner wallet panel lets you switch between Creator, Worker, and Juror roles without a real funded account, so the whole flow is testable in a browser tab. If your browser does not have an injected wallet, the read-only view still works.
 
 ## Why this needs GenLayer
 
@@ -281,9 +283,31 @@ PRIVATE_KEY=0x... NETWORK=bradbury npm run deploy:bradbury
 
 Fund the wallet at https://testnet-faucet.genlayer.foundation first. The RPC is `https://rpc-bradbury.genlayer.com`. Re-run the same end-to-end flow against the new address with small values.
 
-### Frontend (GitHub Pages)
+### Frontend + proxy (Vercel, primary)
 
-This repo deploys the frontend as a static `gh-pages` branch rather than via a GitHub Actions workflow, because fine-grained PATs need the special `workflow` permission to push workflow files.
+The whole frontend and the GitHub proxy ship together as one Vercel project. The proxy lives at `frontend/api/github.mjs` and is built as a serverless function automatically. There is no separate backend to host or keep awake.
+
+Config is in `frontend/vercel.json`. Two env vars are required on the Vercel project:
+
+| Variable | Where used | Example |
+|---|---|---|
+| `GITHUB_TOKEN` | Server-side, by the proxy function | A fine-grained PAT with public-repo read access |
+| `VITE_CONTRACT_ADDRESS` | Build-time, baked into the static bundle | `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A` |
+
+Deploy from the `frontend/` directory:
+
+```bash
+cd frontend
+npm install -g vercel        # one time
+vercel link                  # link to the project once
+vercel --prod                # ship to production
+```
+
+The result is one URL serving both the SPA and `/api/github`, on the same origin, so there is no CORS to manage.
+
+### Frontend (GitHub Pages, mirror)
+
+The Pages build is kept as a backup mirror in case the Vercel project is ever down or rate-limited. It deploys via a `gh-pages` branch rather than a GitHub Actions workflow, because fine-grained PATs need the special `workflow` permission to push workflow files.
 
 Build for Pages:
 
@@ -292,7 +316,7 @@ GITHUB_PAGES=true VITE_CONTRACT_ADDRESS=0x5E992bBc2De02C3878d2623A7C3bEc9603aB65
   npm --prefix frontend run build
 ```
 
-Then push the contents of `frontend/dist` to the `gh-pages` branch (the helper script `scripts/deploy-gh-pages.sh` does this). `GITHUB_PAGES=true` sets the Vite base path to `/proofworks-genlayer/`. Pages should be configured to serve from `gh-pages` at the `/` root.
+Then push the contents of `frontend/dist` to the `gh-pages` branch (the helper script `scripts/deploy-gh-pages.sh` does this). `GITHUB_PAGES=true` sets the Vite base path to `/proofworks-genlayer/`. Pages should be configured to serve from `gh-pages` at the `/` root. The Pages build does not include the GitHub proxy; the UI falls back to the unauthenticated GitHub API and the Jina reader proxy in that environment.
 
 ## Frontend usage walkthrough
 
