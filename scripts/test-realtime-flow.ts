@@ -71,7 +71,11 @@ async function main() {
     
     console.log("DEPLOY_RECEIPT:", JSON.stringify(deployReceipt, null, 2));
     
-    const contractAddress = deployReceipt?.contract_address ?? deployReceipt?.contractAddress ?? deployReceipt?.data?.contractAddress;
+    const contractAddress =
+      deployReceipt?.contract_address ??
+      deployReceipt?.contractAddress ??
+      deployReceipt?.data?.contractAddress ??
+      deployReceipt?.data?.contract_address;
     if (!contractAddress) {
       throw new Error("Contract address could not be retrieved from the deployment receipt.");
     }
