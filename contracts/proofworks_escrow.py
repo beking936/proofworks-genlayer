@@ -1573,7 +1573,7 @@ class ProofWorksEscrow(gl.Contract):
         self.eas_registry_contract = Address(eas_registry)
 
     @gl.public.write
-    def register_team(self, task_id: int, members: list[Address], splits: list[int]) -> None:
+    def register_team(self, task_id: int, members: list[str], splits: list[int]) -> None:
         tid = u256(task_id)
         task = self._get_existing_task(tid)
         self._require(task.creator == gl.message.sender_address, "ONLY_CREATOR")
@@ -1588,18 +1588,21 @@ class ProofWorksEscrow(gl.Contract):
             total_split += int(splits[i])
         self._require(total_split == 100, "SPLITS_MUST_SUM_TO_100")
 
-        task.team_member1 = members[0]
+        def _to_addr(m):
+            return m if isinstance(m, Address) else Address(m)
+
+        task.team_member1 = _to_addr(members[0])
         task.team_split1 = u32(splits[0])
         
         if m_len > 1:
-            task.team_member2 = members[1]
+            task.team_member2 = _to_addr(members[1])
             task.team_split2 = u32(splits[1])
         else:
             task.team_member2 = ZERO_ADDRESS
             task.team_split2 = u32(0)
             
         if m_len > 2:
-            task.team_member3 = members[2]
+            task.team_member3 = _to_addr(members[2])
             task.team_split3 = u32(splits[2])
         else:
             task.team_member3 = ZERO_ADDRESS
