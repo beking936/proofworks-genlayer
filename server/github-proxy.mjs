@@ -6,7 +6,7 @@ import { TransactionStatus } from 'genlayer-js/types';
 
 const PORT = Number(process.env.PORT || process.env.GITHUB_PROXY_PORT || 8787);
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS || '0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A';
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS || '0x541031b4574cDE16c93c2b580Bc1Da763a3efbc7';
 const CREATOR_PRIVATE_KEY = process.env.WEBHOOK_CREATOR_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
 const WORKER_PRIVATE_KEY = process.env.WEBHOOK_WORKER_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
 const WEBHOOK_REWARD_WEI = BigInt(process.env.WEBHOOK_REWARD_WEI || '1');

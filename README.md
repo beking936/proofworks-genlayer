@@ -34,7 +34,7 @@ That is the whole product in one paragraph. The rest of this README is how it wo
 - Frontend (Vercel, primary): https://proofworks-genlayer.vercel.app
 - Frontend (GitHub Pages, mirror): https://tommycet.github.io/proofworks-genlayer/
 - GitHub proxy API: `https://proofworks-genlayer.vercel.app/api/github?url=<github issue or PR url>`
-- Studionet contract (current): `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A`
+- Studionet contract (current): `0x541031b4574cDE16c93c2b580Bc1Da763a3efbc7`
 - Walkthrough video: _to be added_
 
 The Vercel deployment runs both the frontend and the GitHub proxy as a serverless function on the same origin, so there is no CORS dance and no cold-start sleep. The Pages site is kept as a backup mirror but does not have the proxy attached. The burner wallet panel lets you switch between Creator, Worker, and Juror roles without a real funded account, so the whole flow is testable in a browser tab. If your browser does not have an injected wallet, the read-only view still works.
@@ -292,7 +292,7 @@ Config is in `frontend/vercel.json`. Two env vars are required on the Vercel pro
 | Variable | Where used | Example |
 |---|---|---|
 | `GITHUB_TOKEN` | Server-side, by the proxy function | A fine-grained PAT with public-repo read access |
-| `VITE_CONTRACT_ADDRESS` | Build-time, baked into the static bundle | `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A` |
+| `VITE_CONTRACT_ADDRESS` | Build-time, baked into the static bundle | `0x541031b4574cDE16c93c2b580Bc1Da763a3efbc7` |
 
 Deploy from the `frontend/` directory:
 
@@ -312,7 +312,7 @@ The Pages build is kept as a backup mirror in case the Vercel project is ever do
 Build for Pages:
 
 ```bash
-GITHUB_PAGES=true VITE_CONTRACT_ADDRESS=0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A \
+GITHUB_PAGES=true VITE_CONTRACT_ADDRESS=0x541031b4574cDE16c93c2b580Bc1Da763a3efbc7 \
   npm --prefix frontend run build
 ```
 
@@ -367,8 +367,13 @@ Useful reference points for anyone retracing the work.
 - Deploy tx: `0x9a17a565da2098abf93ed49dd6bd0c6faf27bbe2c10682aeabca4f4bac16697d`
 - Verified the issue-to-PR flow with `source` `https://github.com/tommycet/proofworks-genlayer/issues/2` and proof `https://github.com/tommycet/proofworks-genlayer/pull/3`. Verdict `APPROVE / SOLVES_ISSUE / HIGH`, finalized as `PAID`.
 
-**Phase 7 Studionet deployment (2026-05-30)**
-- Contract: `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A` (this is the address the live Pages frontend points at)
+**Phase 9 Studionet deployment (2026-06-01, current live address)**
+- Contract: `0x541031b4574cDE16c93c2b580Bc1Da763a3efbc7`
+- Deploy tx: `0xc569561cbd1a88aab69ac3d00a522e07d01139f04993e15d2d5b1c15f622a01f`
+- Smoke test: created task #1, evaluated to APPROVE / score 100 / payout 100 / HIGH / SOLVES_ISSUE, finalized to PAID with 1000 wei to worker. Full transcript in `scripts/smoke-test.ts`.
+
+**Phase 7 Studionet deployment (2026-05-30, superseded)**
+- Contract: `0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A`
 - Deploy tx: `0xca2ca4afde4c4ce3f666c40c219784f4fcc7ec664ceb40db7f18c939a9bc8b00`
 - Added `release_expired_claim`, `get_reputation`, `get_task_manifest`, same-repo enforcement, reputation updates throughout the lifecycle.
 

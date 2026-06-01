@@ -5,7 +5,7 @@ import type { Address } from "viem";
 import type { EscrowSummary, ProofTask } from "../types/task";
 import type { Milestone } from "../types/milestone";
 
-export const DEFAULT_CONTRACT_ADDRESS = "0x5E992bBc2De02C3878d2623A7C3bEc9603aB651A" as Address;
+export const DEFAULT_CONTRACT_ADDRESS = "0x541031b4574cDE16c93c2b580Bc1Da763a3efbc7" as Address;
 export const CONTRACT_ADDRESS = (import.meta.env.VITE_CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS) as Address;
 
 export const readClient = createClient({ chain: studionet });
